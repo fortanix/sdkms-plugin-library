@@ -1,5 +1,5 @@
 -- Name: AWS BYOK
--- Version: 1.0
+-- Version: 2.0
 -- Description:## Short Description
 -- This plugin implements the Bring your own key (BYOK) model for AWS cloud. Using this plugin you can keep your key inside Fortanix Self-Defending KMS and use BYOK features of AWS KMS.
 -- 
@@ -18,7 +18,10 @@
 -- - Push Fortanix Self-Defending KMS key in AWS KMS
 -- - List Fortanix Self-Defending KMS AWS BYOK key
 -- - Rotate Fortanix Self-Defending KMS AWS BYOK key
--- 
+-- - Disable AWS BYOK key from Fortanix Self-Defending KMS
+-- - Enable AWS BYOK key from Fortanix Self-Defending KMS
+-- - Delete AWS BYOK key from Fortanix Self-Defending KMS
+-- - Reimport key material from Fortanix Self-Defending KMS to AWS CMK
 -- 
 -- ## Setup
 -- 
@@ -200,8 +203,64 @@
 -- }
 -- ```
 -- 
+-- ### Disable operation
+--
+-- This operation will disable a AWS KMS key.
+--
+-- #### Parameters
+--
+-- * `operation`: The operation which you want to perform. A valid value is `disable`.
+-- * `name`: Name of the key
+-- * `secret_id`: The response of `configuration` operation.
+--
+-- #### Example
+--
+-- Input JSON
+-- ```
+-- {
+--   "operation": "disable",
+--   "name": "test-key",
+--   "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144"
+-- }
+-- ```
+--
+-- Output JSON
+-- ```
+-- {}
+-- ```
+--
+-- ### Enable operation
+--
+-- This operation will enable a AWS KMS disabled key.
+--
+-- #### Parameters
+--
+-- * `operation`: The operation which you want to perform. A valid value is `enable`.
+-- * `name`: Name of the key
+-- * `secret_id`: The response of `configuration` operation.
+--
+-- #### Example
+--
+-- Input JSON
+-- ```
+-- {
+--   "operation": "enable",
+--   "name": "test-key",
+--   "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144"
+-- }
+-- ```
+--
+-- Output JSON
+-- ```
+-- {}
+-- ```
+--
 -- ### Release Notes
--- - Initial release
+-- Added support for the following new features:
+-- - Disable AWS BYOK key from Fortanix Self-Defending KMS
+-- - Enable AWS BYOK key from Fortanix Self-Defending KMS
+-- - Schedule deletion for AWS CMK from Fortanix Self-Defending KMS
+-- - Reimport key material from Fortanix Self-Defending KMS to AWS CMK
 
 --[[
 configure
@@ -213,7 +272,7 @@ configure
 
 create
 {
-  "operation": "create", 
+  "operation": "create",
   "name": "test-key",
   "secret_id": "d6807129-27fe-4f64-8509-f9d3326c1de5"
 }
@@ -226,11 +285,41 @@ list
 
 rotate
 {
-  "operation": "rotate", 
+  "operation": "rotate",
+  "name": "test-key",
+  "secret_id": "d6807129-27fe-4f64-8509-f9d3326c1de5"
+}
+
+disable
+{
+  "operation": "disable",
+  "name": "test-key",
+  "secret_id": "d6807129-27fe-4f64-8509-f9d3326c1de5"
+}
+
+enable
+{
+  "operation": "enable",
+  "name": "test-key",
+  "secret_id": "d6807129-27fe-4f64-8509-f9d3326c1de5"
+}
+
+delete
+{
+  "operation": "delete",
+  "name": "test-key",
+  "secret_id": "d6807129-27fe-4f64-8509-f9d3326c1de5"
+}
+
+reimport
+{
+  "operation": "reimport",
   "name": "test-key",
   "secret_id": "d6807129-27fe-4f64-8509-f9d3326c1de5"
 }
 --]]
+
+
 
 function sign(key, msg) -- SHA256-HMAC
   assert(getmetatable(key) == Blob and type(msg) == 'string')
@@ -322,6 +411,18 @@ function aws_delete_key(secret_id, aws_key_id)
   request_body = '{"KeyId": "' .. aws_key_id .. '"}'
   response, err = aws_request(secret_id, "TrentService.ScheduleKeyDeletion", request_body, "POST")
   return response, err   
+end
+
+function aws_disable_key(secret_id, aws_key_id)
+  request_body = '{"KeyId": "' .. aws_key_id .. '"}'
+  local response, err = aws_request(secret_id ,"TrentService.DisableKey", request_body, "POST")
+  return response, err
+end
+
+function aws_enable_key(secret_id, aws_key_id)
+  request_body = '{"KeyId": "' .. aws_key_id .. '"}'
+  local response, err = aws_request(secret_id ,"TrentService.EnableKey", request_body, "POST")
+  return response, err
 end
 
 function aws_get_import_params(secret_id, key_id)
@@ -435,5 +536,41 @@ function run(input)
     new_master_key:update{custom_metadata = { AWS_KEY_ID = aws_key_id}}
     new_master_key:update { name = input.name }
     return Sobject {name = input.name} 
+  elseif input.operation == "disable" then
+    local key = assert(Sobject { name = input.name})
+    if key.custom_metadata == nil or key.custom_metadata.AWS_KEY_ID == nil then
+      return "the input key ".. input.name .. " is not a valid AWS BYOK Key"
+    end
+    return aws_disable_key(input.secret_id, key.custom_metadata.AWS_KEY_ID)
+  elseif input.operation == "enable" then
+     local key = assert(Sobject { name = input.name})
+    if key.custom_metadata == nil or key.custom_metadata.AWS_KEY_ID == nil then
+      return "the input key ".. input.name .. " is not a valid AWS BYOK Key"
+    end
+    return aws_enable_key(input.secret_id, key.custom_metadata.AWS_KEY_ID)
+  elseif input.operation == "delete" then
+    local key = assert(Sobject { name = input.name})
+    if key.custom_metadata == nil or key.custom_metadata.AWS_KEY_ID == nil then
+      return "the input key ".. input.name .. " is not a valid AWS BYOK Key"
+    end
+    key:delete()
+    return aws_delete_key(input.secret_id, key.custom_metadata.AWS_KEY_ID)
+  elseif input.operation == "reimport" then
+    local key = assert(Sobject { name = input.name})
+    if key.custom_metadata == nil or key.custom_metadata.AWS_KEY_ID == nil then
+      return "the input key ".. input.name .. " is not a valid AWS BYOK Key"
+    end
+    local aws_key_id = key.custom_metadata.AWS_KEY_ID
+    local import_params, err = aws_get_import_params(input.secret_id, aws_key_id)
+    if import_params == nil then
+      return import_params, err
+    end
+    local wrapped_key = wrap_key_for_import(input.secret_id, aws_key_id, key, import_params)
+    if wrapped_key == nil then
+      return "Reimport operation fail"
+    end
+    local resp, err = aws_import_key(input.secret_id, aws_key_id, wrapped_key, import_params)
+    return resp, err
   end
 end
+
