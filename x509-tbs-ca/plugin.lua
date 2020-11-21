@@ -1,5 +1,5 @@
 -- Name: X.509 TBS CA
--- Version: 1.0
+-- Version: 2.0
 -- Description:## Short Description
 -- Creates a signed X.509 Certificate structure for keys managed by SDKMS. It showcases the flexibility of the plugin framework to use user-specific data formats.
 --
@@ -42,7 +42,7 @@
 --  - https://www.rfc-editor.org/rfc/rfc5280.txt
 -- 
 -- ### Release Notes 
---  - Initial release
+--  - Fixed number of arguments passed to sign()
 
 function check(input)
    if type(input) ~= 'table' then
@@ -112,7 +112,8 @@ function run(input)
       :end_seq():value()
    tbs:add_extension(Oid.from_str('2.5.29.32'), false, cert_policy)
 
-   local new_cert = tbs:sign(issuer_cert, input.issuer_key, input.cert_lifetime)
+   local serial_number_bits = 160
+   local new_cert = tbs:sign(issuer_cert, input.issuer_key, serial_number_bits, "SHA256")
    return format_pem(new_cert:export().value:base64(), "CERTIFICATE")
 end
 
