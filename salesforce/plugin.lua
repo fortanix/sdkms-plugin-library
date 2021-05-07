@@ -1,4 +1,4 @@
--- Name: BYOK for Salesforce Cloud
+-- Name: Cache-only BYOK for Salesforce Cloud
 -- Version: 1.0
 -- Description: ## Short Description
 -- Fortanix Self-Defending KMS can be used as HSM backed Software-as-a-service(SAAS) for Fortanix - Salesforce Cache only BYOK solution. This plugin can be used to securely generate encryption keys and configure in Salesforce’s Shield Platform.
