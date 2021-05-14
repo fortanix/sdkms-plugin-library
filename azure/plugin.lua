@@ -4,15 +4,15 @@
 -- This plugin implements the Bring your own key (BYOK) model for Azure cloud. Using this plugin you can keep your key inside Fortanix Self-Defending KMS and use BYOK features of Azure key vault.
 -- ### ## Introduction
 -- The cloud services provide many advantages but the major disadvantage of cloud providers has been security because physically your data resides with the cloud provider. To keep data secure in a cloud provider environment, enterprises use encryption. So securing their encryption keys become significantly important. Bring Your Own Key (BYOK) allows enterprises to encrypt their data and retain control and management of their encryption keys. This plugin provides an implementation to use the Azure cloud BYOK model.
--- 
--- ## Requirenment 
--- 
--- - Fortanix Self-Defending KMS Version >= 3.17.1330 
--- 
+--
+-- ## Requirenment
+--
+-- - Fortanix Self-Defending KMS Version >= 3.17.1330
+--
 -- ## Use cases
--- 
+--
 -- The plugin can be used to
--- 
+--
 -- - Push Fortanix Self-Defending KMS key in Azure key vault
 -- - List Azure BYOK key
 -- - Rotate key in Fortanix Self-Defending KMS and corresponding key in Azure key vault
@@ -21,60 +21,60 @@
 -- - Recover Azure key vault key
 -- - Restore Azure key vault key
 -- - Purge Azure key vault key
--- 
+--
 -- ## Setup
--- 
+--
 -- - Log in to https://portal.azure.com/
 -- - Register an app in Azure cloud (Note down the Application (client) ID, Directory (tenant) ID, and client secret of this app). We will configure this information in Fortanix Self-Defending KMS.
 -- - Create a Key vault in Azure
 -- - Add the above app in the `Access Policy` of the above key vault
--- 
+--
 -- ## Input/Output JSON object format
--- 
+--
 -- ### Configure operation
--- 
+--
 -- This operation configures Azure app credential in Fortanix Self-Defending KMS and returns a UUID. You need to pass this UUID for other operations. This is a one time process.
--- 
--- ### Parameters 
--- 
+--
+-- ### Parameters
+--
 -- * `operation`: The operation which you want to perform. A valid value is `configure`.
 -- * `tenant_id`: Azure tenant ID
 -- * `client_id`: Azure app ID or client ID
 -- * `client_secret`: Azure app secret
--- 
+--
 -- ### Example
--- 
+--
 -- Input JSON
 -- ```
--- { 
+-- {
 --    "operation": "configure",
 --    "tenant_id": "de7becae...88ae6",
 --    "client_id": "f8d7741...6abb6",
 --    "client_secret": "SvU...5"
 -- }
 -- ```
--- 
+--
 -- Output JSON
 -- ```
 -- {
 --   "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
 -- }
 -- ```
--- 
+--
 -- ### Create Key operation
--- 
+--
 -- This operation will create an RSA key in Fortanix Self-Defending KMS and in Azure key vault and return a key ID.
--- 
+--
 -- ### Parameters
--- 
+--
 -- * `operation`: The operation which you want to perform. A valid value is `create`.
 -- * `key_name`: Name of the key
 -- * `key_vault`: Azure key vault name
 -- * `exp`: Key expiration time. Accepted format is Unix time.
--- * `secret_id`: The response of `configuration` operation. 
--- 
+-- * `secret_id`: The response of `configuration` operation.
+--
 -- ### Example
--- 
+--
 -- Input JSON
 -- ```
 -- {
@@ -85,7 +85,7 @@
 --   "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
 -- }
 -- ```
--- 
+--
 -- Output JSON
 -- ```
 -- {
@@ -114,20 +114,20 @@
 --   }
 -- }
 -- ```
--- 
+--
 -- ### List Key operation
--- 
+--
 -- This operation will list all the BYOK keys from azure.
--- 
+--
 -- ### Parameters
--- 
+--
 -- * `operation`: The operation which you want to perform. A valid value is `list`.
 -- * `key_name`: Name of the key
 -- * `key_vault`: Azure key vault name
--- * `secret_id`: The response of `configuration` operation. 
--- 
+-- * `secret_id`: The response of `configuration` operation.
+--
 -- ### Example
--- 
+--
 -- Input JSON
 -- ```
 -- {
@@ -136,7 +136,7 @@
 --   "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
 -- }
 -- ```
--- 
+--
 -- Output JSON
 -- ```
 -- {
@@ -161,20 +161,20 @@
 --   }
 -- }
 -- ```
--- 
+--
 -- ### Rotate Key operation
--- 
+--
 -- This operation will rotate a key in Fortanix Self-Defending KMS as well as Azure key vault.
--- 
+--
 -- ### Parameters
--- 
+--
 -- * `operation`: The operation which you want to perform. A valid value is `rotate`.
 -- * `key_name`: Name of the key
 -- * `key_vault`: Azure key vault name
--- * `secret_id`: The response of `configuration` operation. 
--- 
+-- * `secret_id`: The response of `configuration` operation.
+--
 -- ### Example
--- 
+--
 -- Input JSON
 -- ```
 -- {
@@ -184,7 +184,7 @@
 --   "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
 -- }
 -- ```
--- 
+--
 -- Output JSON
 -- ```
 -- {
@@ -216,21 +216,21 @@
 --   }
 -- }
 -- ```
--- 
--- 
+--
+--
 -- ### Backup Key operation
--- 
+--
 -- This operation will return encrypted Azure key vault key.
--- 
+--
 -- ### Parameters
--- 
+--
 -- * `operation`: The operation which you want to perform. A valid value is `backup`.
 -- * `key_name`: Name of the key
 -- * `key_vault`: Azure key vault name
--- * `secret_id`: The response of `configuration` operation. 
--- 
+-- * `secret_id`: The response of `configuration` operation.
+--
 -- ### Example
--- 
+--
 -- Input JSON
 -- ```
 -- {
@@ -240,7 +240,7 @@
 --   "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
 -- }
 -- ```
--- 
+--
 -- Output JSON
 -- ```
 -- {
@@ -270,18 +270,18 @@
 --   }
 -- }
 -- ```
--- 
+--
 -- ### Delete Key operation
--- 
+--
 -- This operation will delete a key in Fortanix Self-Defending KMS as well as Azure key vault.
--- 
+--
 -- ### Parameters
--- 
+--
 -- * `operation`: The operation which you want to perform. A valid value is `delete`.
 -- * `key_name`: Name of the key
 -- * `key_vault`: Azure key vault name
--- * `secret_id`: The response of `configuration` operation. 
--- 
+-- * `secret_id`: The response of `configuration` operation.
+--
 -- Input JSON
 -- ```
 -- {
@@ -291,7 +291,7 @@
 --   "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
 -- }
 -- ```
--- 
+--
 -- Output JSON
 -- ```
 -- {
@@ -326,20 +326,20 @@
 --   }
 -- }
 -- ```
--- 
+--
 -- ### Recover Key operation
--- 
+--
 -- This operation will recover a deleted key of Azure key vault.
--- 
+--
 -- ### Parameters
--- 
+--
 -- * `operation`: The operation which you want to perform. A valid value is `recover`.
 -- * `key_name`: Name of the key
 -- * `key_vault`: Azure key vault name
 -- * `secret_id`: The response of `configuration` operation.
--- 
+--
 -- ### Example
--- 
+--
 -- Input JSON
 -- ```
 -- {
@@ -349,7 +349,7 @@
 --   "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
 -- }
 -- ```
--- 
+--
 -- Output JSON
 -- ```
 -- [
@@ -381,20 +381,20 @@
 --   }
 -- ]
 -- ```
--- 
+--
 -- ### Restore Key operation
--- 
+--
 -- This operation will restore a key in Azure key vault from its backup blob value.
--- 
+--
 -- ### Parameters
--- 
+--
 -- * `operation`: The operation which you want to perform. A valid value is `restore`.
 -- * `kid`: Response `kid` of `backup` operation
 -- * `key_vault`: Azure key vault name
 -- * `secret_id`: The response of `configuration` operation.
--- 
+--
 -- ### Example
--- 
+--
 -- Input JSON
 -- ```
 -- {
@@ -405,7 +405,7 @@
 --   "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
 -- }
 -- ```
--- 
+--
 -- Output JSON
 -- ```
 -- {
@@ -433,20 +433,20 @@
 --   }
 -- }
 -- ```
--- 
+--
 -- ### Purge Key operation
--- 
+--
 -- This operation will purge a key in Azure key vault.
--- 
+--
 -- ### Parameters
--- 
+--
 -- * `operation`: The operation which you want to perform. A valid value is `purge`.
 -- * `key_name`: Name of the key
 -- * `key_vault`: Azure key vault name
 -- * `secret_id`: The response of `configuration` operation.
--- 
+--
 -- ### Example
--- 
+--
 -- Input JSON
 -- ```
 -- {
@@ -456,9 +456,9 @@
 --   "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
 -- }
 -- ```
--- 
+--
 -- Output JSON
--- 
+--
 -- ```
 -- {
 --   "body": "",
@@ -479,10 +479,10 @@
 --   "status": 204
 -- }
 -- ```
--- 
+--
 -- ### References
 -- - [Azure BYOK](https://docs.microsoft.com/en-us/azure/information-protection/byok-price-restrictions)
--- 
+--
 -- ### Release Notes
 -- - Initial release
 
@@ -733,12 +733,12 @@ function restore_key(headers, key_vault, name)
   return response
 end
 
-function purge_key(headers, key_vault, key_name) 
+function purge_key(headers, key_vault, key_name)
   local url = 'https://'.. key_vault ..'.vault.azure.net/deletedkeys/'..key_name..'?api-version=7.0'
    local response, err = request { method = 'DELETE', url = url, headers = headers, body='' }
   return response, err
-end  
-  
+end
+
 function is_valid_sdkms_key(name)
   local response1, err1 = Sobject {name = name}
   if err1 ~=nil or response1 == nil then
@@ -747,7 +747,7 @@ function is_valid_sdkms_key(name)
   return true
 end
 
-function is_valid_cloud_key(headers, key_vault, name)  
+function is_valid_cloud_key(headers, key_vault, name)
   url = 'https://'.. key_vault ..'.vault.azure.net/keys/'..name..'?api-version=7.0'
   local response2, err2 = request {method = 'GET', url = url, headers = headers, body = ''}
   if err2 ~= nil or response2.status ~= 200 then
@@ -779,52 +779,68 @@ function bitand(a, b)
   return result
 end
 
-function slice(key, l, r)
-  local s = ''
-  for i = l, r do
-    s = s .. string.format('%x', key[l] * 256):sub(1, 2)
-    l = l + 1
+function table.slice(tbl, first, last, step)
+  local sliced = {}
+  for i = first or 1, last or #tbl, step or 1 do
+    sliced[#sliced+1] = tbl[i]
   end
-  return s
+  return sliced
 end
 
-function _read(key, blob)
-  local s = key[offset+2]
-  if (bitand(s, 0x80)) > 0 then
-    local n = s - 0x80
-    s = key[offset+3]
-    offset = offset + n
+function to_hex(byte)
+  str = ""
+  for i = 1, #byte do
+    local output = string.format("%02x", byte[i])
+    str = str..output
   end
-  offset = offset + 2
-  byte = blob:slice(offset + 1, offset+s):hex()
+  return str
+end
+
+function _read(buffer)
+  offset = offset+1
+  if (buffer[offset] == 2) then
+    _type = "integer"
+    offset = offset+1
+  end
+  local s = buffer[offset] - 128
+  if s <= 0 then
+    s = buffer[offset]
+    local byte = table.slice(buffer, offset+1, offset+s)
+    offset = offset + s
+    return to_hex(byte)
+  end
+
+  local str = ""
+  for i = offset+1, offset+s, 1 do
+    local output = string.format("%02x", buffer[i])
+    str = str..output
+  end
   offset = offset + s
-  return byte
+  local e = tonumber(str, 16)
+  local byte = table.slice(buffer, offset+1, offset+e)
+  offset = offset + e
+  return to_hex(byte)
 end
 
 function pem_to_jwk(name)
-  local blob = assert(Sobject { name = name }):export().value
-  local hex_str = blob:hex()
-  local kty = 'private'
-  if kty == 'private' then
-    offset = 7
+  local key = Sobject {name = name}:export().value:hex()
+  local buffer = {}
+  for i = 1, string.len(key), 2 do
+    local chr = key:sub(i,i+1)
+    table.insert(buffer, tonumber(chr, 16))
   end
 
-  local tab = {}
-  for i = 1, string.len(hex_str), 2 do
-    local c = hex_str:sub(i,i+1)
-    table.insert(tab, tonumber(c, 16))
-  end
-
+  offset = 7
   return {
     kty = "RSA",
-    n = hex_to_url(_read(tab, blob)),
-    e = hex_to_url(_read(tab, blob)),
-    d = hex_to_url(_read(tab, blob)),
-    p = hex_to_url(_read(tab, blob)),
-    q = hex_to_url(_read(tab, blob)),
-    dp = hex_to_url(_read(tab, blob)),
-    dq = hex_to_url(_read(tab, blob)),
-    qi = hex_to_url(_read(tab, blob))
+    n = hex_to_url(_read(buffer)),
+    e = hex_to_url(_read(buffer)),
+    d = hex_to_url(_read(buffer)),
+    p = hex_to_url(_read(buffer)),
+    q = hex_to_url(_read(buffer)),
+    dp = hex_to_url(_read(buffer)),
+    dq = hex_to_url(_read(buffer)),
+    qi = hex_to_url(_read(buffer)),
   }
 end
 
@@ -920,7 +936,7 @@ function run(input)
       if is_valid_cloud_key(headers, input.key_vault, input.key_name) or is_valid_sdkms_key(input.key_name) then
         return "Something went wrong or key already exist in Azure cloud or in SDKMS"
       end
-      return import_key(headers, input.key_vault, input.key_name, input.exp) 
+      return import_key(headers, input.key_vault, input.key_name, input.exp)
     elseif input.operation == 'list' then
       return list_keys(headers, input.key_vault)
     elseif input.operation == 'rotate' then
