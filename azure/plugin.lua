@@ -1,5 +1,5 @@
 -- Name: Self-Defending KMS-Azure Bring Your Own Key (BYOK)
--- Version: 1.0
+-- Version: 2.0
 -- Description: ## Short Description
 -- This plugin implements the Bring your own key (BYOK) model for Azure cloud. Using this plugin you can keep your key inside Fortanix Self-Defending KMS and use BYOK features of Azure key vault.
 -- ### ## Introduction
@@ -484,7 +484,8 @@
 -- - [Azure BYOK](https://docs.microsoft.com/en-us/azure/information-protection/byok-price-restrictions)
 -- 
 -- ### Release Notes
--- - Initial release
+-- Added key_size parameter to import (previously set to 1024 only)
+-- Improved the pem_to_jwk conversion
 
 --[[
 // Configure client credentials
@@ -593,9 +594,9 @@ function login(secret_id)
   return {result = json.decode(response.body).access_token, error = nil}
 end
 
-function import_key(headers, key_vault, key_name, exp)
+function import_key(headers, key_vault, key_name, key_size, exp)
   -- create exportable key in sdkms
-  local sobject, err = Sobject.create { name = key_name, obj_type = 'RSA', key_size = 1024, key_ops = {'SIGN', 'VERIFY', 'EXPORT'}, custom_metadata = {['KeyType'] = 'BYOK', ['CloudProvider'] = 'Azure'}}
+  local sobject, err = Sobject.create { name = key_name, obj_type = 'RSA', key_size = key_size, key_ops = {'SIGN', 'VERIFY', 'EXPORT'}, custom_metadata = {['KeyType'] = 'BYOK', ['CloudProvider'] = 'Azure'}}
   if sobject == nil or err ~=nil then
     return {result = sobject, error = err, message = "Create BYOK operation fail."}
   end
@@ -651,13 +652,14 @@ function import_key(headers, key_vault, key_name, exp)
 end
 
 function rotate_key(headers, key_vault, key_name)
-  -- create new key in sdkms
-  local sobject, err = Sobject.create { name = 'new-' .. key_name, obj_type = 'RSA', key_size = 1024, key_ops = {'ENCRYPT', 'DECRYPT', 'SIGN', 'VERIFY', 'APPMANAGEABLE', 'EXPORT'}}
+
+  -- get old key
+  local old_sobject, err = Sobject { name = key_name }
+  -- create new key with old key size
+  local sobject, err = Sobject.create { name = 'new-' .. key_name, obj_type = 'RSA', key_size = old_sobject.key_size, key_ops = {'ENCRYPT', 'DECRYPT', 'SIGN', 'VERIFY', 'APPMANAGEABLE', 'EXPORT'}}
   if sobject == nil then
     return {result = nil, error = err}
   end
-  -- get old key
-  local old_sobject, err = Sobject { name = key_name }
   -- update old key name to name..replace_by_new_uuid
   old_sobject:update { name = key_name .. '-replaced-by-' .. sobject.kid }
   sobject:update { name = key_name }
@@ -765,66 +767,68 @@ function hex_to_url(hex_str)
   return url
 end
 
-function bitand(a, b)
-  local result = 0
-  local bitval = 1
-  while a > 0 and b > 0 do
-    if a % 2 == 1 and b % 2 == 1 then -- test the rightmost bits
-      result = result + bitval      -- set the current bit
-    end
-    bitval = bitval * 2 -- shift left
-    a = math.floor(a/2) -- shift right
-    b = math.floor(b/2)
+function table.slice(tbl, first, last, step)
+  local sliced = {}
+  for i = first or 1, last or #tbl, step or 1 do
+    sliced[#sliced+1] = tbl[i]
   end
-  return result
+  return sliced
 end
 
-function slice(key, l, r)
-  local s = ''
-  for i = l, r do
-    s = s .. string.format('%x', key[l] * 256):sub(1, 2)
-    l = l + 1
+function to_hex(byte)
+  str = ""
+  for i = 1, #byte do 
+    local output = string.format("%02x", byte[i])
+    str = str..output
   end
-  return s
+  return str
 end
 
-function _read(key, blob)
-  local s = key[offset+2]
-  if (bitand(s, 0x80)) > 0 then
-    local n = s - 0x80
-    s = key[offset+3]
-    offset = offset + n
+function _read(buffer)
+  offset = offset+1
+  if (buffer[offset] == 2) then
+    _type = "integer"
+    offset = offset+1
   end
-  offset = offset + 2
-  byte = blob:slice(offset + 1, offset+s):hex()
+  -- # element need to read to get item offset
+  local s = buffer[offset] - 128
+  if s <= 0 then
+    s = buffer[offset]
+    local byte = table.slice(buffer, offset+1, offset+s)
+    offset = offset + s
+    return  to_hex(byte) 
+  end
+    
+  local str = ""
+  for i = offset+1, offset+s, 1 do 
+    local output = string.format("%02x", buffer[i])
+    str = str..output
+  end
   offset = offset + s
-  return byte
+  local e = tonumber(str, 16)
+  local byte = table.slice(buffer, offset+1, offset+e)
+  offset = offset + e
+  return to_hex(byte)
 end
 
 function pem_to_jwk(name)
-  local blob = assert(Sobject { name = name }):export().value
-  local hex_str = blob:hex()
-  local kty = 'private'
-  if kty == 'private' then
-    offset = 7
+  local key = assert(Sobject { name = name }):export().value:hex()
+  local buffer = {}
+  for i = 1, string.len(key), 2 do
+    local chr = key:sub(i,i+1)
+    table.insert(buffer, tonumber(chr, 16))
   end
-
-  local tab = {}
-  for i = 1, string.len(hex_str), 2 do
-    local c = hex_str:sub(i,i+1)
-    table.insert(tab, tonumber(c, 16))
-  end
-
+  offset = 7
   return {
     kty = "RSA",
-    n = hex_to_url(_read(tab, blob)),
-    e = hex_to_url(_read(tab, blob)),
-    d = hex_to_url(_read(tab, blob)),
-    p = hex_to_url(_read(tab, blob)),
-    q = hex_to_url(_read(tab, blob)),
-    dp = hex_to_url(_read(tab, blob)),
-    dq = hex_to_url(_read(tab, blob)),
-    qi = hex_to_url(_read(tab, blob))
+    n = hex_to_url(_read(buffer)),
+    e = hex_to_url(_read(buffer)),
+    d = hex_to_url(_read(buffer)),
+    p = hex_to_url(_read(buffer)),
+    q = hex_to_url(_read(buffer)),
+    dp = hex_to_url(_read(buffer)),
+    dq = hex_to_url(_read(buffer)),
+    qi = hex_to_url(_read(buffer))
   }
 end
 
@@ -920,7 +924,7 @@ function run(input)
       if is_valid_cloud_key(headers, input.key_vault, input.key_name) or is_valid_sdkms_key(input.key_name) then
         return "Something went wrong or key already exist in Azure cloud or in SDKMS"
       end
-      return import_key(headers, input.key_vault, input.key_name, input.exp) 
+      return import_key(headers, input.key_vault, input.key_name, input.key_size, input.exp)
     elseif input.operation == 'list' then
       return list_keys(headers, input.key_vault)
     elseif input.operation == 'rotate' then
