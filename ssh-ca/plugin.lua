@@ -38,7 +38,7 @@
 -- `$ ssh-keygen -f ssh_ca`
 -- 
 -- This will create two files, `ssh_ca.pub` (public key in SSH format)
--- and `ssh_ca` (private key in PKCS #8 format).
+-- and `ssh_ca` (private key in PKCS #1 format).
 -- 
 -- ```
 -- -----BEGIN RSA PRIVATE KEY-----
@@ -65,7 +65,7 @@
 -- 
 -- `ssh-keygen -f ~/.ssh/user_key`
 -- 
--- This will again generate two keys, `user_key` (PKCS#8 private key) and
+-- This will again generate two keys, `user_key` (PKCS#1 private key) and
 -- `user_key.pub` (the SSH format public key). The `user_key.pub` should look like
 -- 
 -- `ssh-rsa AAAAB3<more base64 data> username@hostname`
