@@ -1,0 +1,8 @@
+{
+  "name": "Snowflake External Function for FPE Tokenization",
+  "version": 1.0,
+  "short_description": "Uses AES keys with FF1 algorithm in Fortanix DSM to protect sensitive fields in Snowflake.",
+  "release_notes": [
+    "Initial release"
+  ]
+}
