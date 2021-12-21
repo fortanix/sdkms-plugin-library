@@ -306,7 +306,7 @@ function login(secret_id)
   local request_body = 'grant_type=client_credentials&client_id='..client_id..'&client_secret='..client_secret..'&resource=https%3A%2F%2Fvault.azure.net'
   local response = request { method = 'POST', url = url, headers = headers, body=request_body }
   if response.status ~= 200 then
-    return {result = nil, error = json.decode(response)}
+    return {result = nil, error = json.decode(response.body)}
   end
   return {result = json.decode(response.body).access_token, error = nil}
 end
@@ -469,7 +469,7 @@ function run(input)
 
   if input.operation == 'configure' then
     return save_credentials(input.tenant_id, input.client_id, input.client_secret)
-  else 
+  else
     local resp, err, message = login(input.secret_id)
     if resp.result == nil then
       return {result = resp, error = err, message = message}

@@ -304,7 +304,7 @@ function login(secret_id)
   local request_body = 'grant_type=client_credentials&client_id='..client_id..'&client_secret='..client_secret..'&resource=https%3A%2F%2Fmanagedhsm.azure.net'
   local response = request { method = 'POST', url = url, headers = headers, body=request_body }
   if response.status ~= 200 then
-    return {result = nil, error = json.decode(response)}
+    return {result = nil, error = json.decode(response.body)}
   end
   return {result = json.decode(response.body).access_token, error = nil}
 end
