@@ -1,8 +1,6 @@
 -- Name: Self-Defending KMS-Azure Bring Your Own Key (BYOK) HSM
 -- Version: 1.1
 -- Description: This plugin implements the Bring your own key (BYOK) HSM model for Azure cloud. Using this plugin you can keep your key inside Fortanix Self-Defending KMS and use BYOK features of Azure key vault.
--- # FORTANIX SELF-DEFENDING KMS-AZURE BRING YOUR OWN KEY (BYOK) HSM PLUGIN
--- 
 -- ## Introduction
 -- 
 -- The cloud services provide many advantages but the major disadvantage of cloud providers has been security because physically your data resides with the cloud provider. To keep data secure in a cloud provider environment, enterprises use encryption. So securing their encryption keys become significantly important. Bring Your Own Key (BYOK) allows enterprises to encrypt their data and retain control and management of their encryption keys. This plugin provides an implementation to use the Azure cloud BYOK model.
@@ -220,6 +218,7 @@
 -- ## Release Notes
 -- - Initial release
 -- - Better error handling
+
 --[[
 configure operation
 {
