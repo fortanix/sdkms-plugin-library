@@ -20,7 +20,7 @@ The plugin can be used to
 
 - Log in to https://portal.azure.com/
 - Register an app in Azure cloud (Note down the Application (client) ID, Directory (tenant) ID, and client secret of this app). We will configure this information in Fortanix DSM
-- Create a premium Azure key vault
+- Create a managed Azure key vault
 - Add the above app in the `Access Policy` of the above key vault
 - Create KEK key in Azure key vault
 
