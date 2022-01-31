@@ -1,5 +1,5 @@
 -- Name: Self-Defending KMS-Azure Bring Your Own Key (BYOK)
--- Version: 2.0
+-- Version: 2.1
 -- Description: ## Short Description
 -- This plugin implements the Bring your own key (BYOK) model for Azure cloud. Using this plugin you can keep your key inside Fortanix Self-Defending KMS and use BYOK features of Azure key vault.
 -- ### ## Introduction
@@ -486,6 +486,7 @@
 -- ### Release Notes
 -- Added key_size parameter to import (previously set to 1024 only)
 -- Improved the pem_to_jwk conversion
+-- Make sure err is checked in azure plugins after network requests are made
 
 --[[
 // Configure client credentials
@@ -588,6 +589,9 @@ function login(secret_id)
   local url = 'https://login.microsoftonline.com/'.. tenant_id ..'/oauth2/token'
   local request_body = 'grant_type=client_credentials&client_id='..client_id..'&client_secret='..client_secret..'&resource=https%3A%2F%2Fvault.azure.net'
   local response, err = request { method = 'POST', url = url, headers = headers, body=request_body }
+  if err ~= nil then
+    return {result = nil, error = err}
+  end
   if response.status ~= 200 then
     return {result = nil, error = json.decode(response.body)}
   end
@@ -685,7 +689,7 @@ end
 function list_keys(headers, key_vault)
   local url = 'https://'.. key_vault ..'.vault.azure.net/keys?api-version=7.0'
   local response, err = request { method = 'GET', url = url, headers = headers, body='' }
-  if err ~=nil or response.status ~= 200 then
+  if err ~= nil or response.status ~= 200 then
     return {result = response, error = err, message = "Something went wrong. Can't list the keys."}
   end
   return {result = json.decode(response.body), error = nil}
@@ -693,8 +697,8 @@ end
 
 function delete_key(headers, key_vault, key_name)
   local url = 'https://'.. key_vault ..'.vault.azure.net/keys/'.. key_name ..'?api-version=7.0'
-  local response = request { method = 'DELETE', url = url, headers = headers, body='' }
-  if err ~=nil or response.status ~= 200 then
+  local response, err = request { method = 'DELETE', url = url, headers = headers, body='' }
+  if err ~= nil or response.status ~= 200 then
     return {result = response, error = err, message = "Something went wrong. Can't delete the key."}
   end
   return {result = json.decode(response.body), error = nil}
@@ -703,7 +707,7 @@ end
 function backup_key(headers, key_vault, key_name)
   local url = 'https://'.. key_vault ..'.vault.azure.net/keys/'.. key_name ..'/backup?api-version=7.0'
   local response, err = request { method = 'POST', url = url, headers = headers, body='' }
-  if err ~=nil or response.status ~= 200 then
+  if err ~= nil or response.status ~= 200 then
     return {result = response, error = err, message = "Something went wrong. Can't backup the key."}
   end
   local blob = json.decode(response.body).value
@@ -716,7 +720,7 @@ end
 function recover_key(headers, key_vault, key_name)
   local url = 'https://'.. key_vault ..'.vault.azure.net/deletedkeys/'.. key_name ..'/recover?api-version=7.0'
   local response, err = request { method = 'POST', url = url, headers = headers, body='' }
-  if err ~=nil or response.status ~= 200 then
+  if err ~= nil or response.status ~= 200 then
     return {result = response, error = err, message = "Something went wrong. Can't recover the key."}
   end
   return {result = json.decode(response.body), error = nil}
@@ -729,30 +733,30 @@ function restore_key(headers, key_vault, name)
     value = exported_value
   }
   local response, err = request { method = 'POST', url = url, headers = headers, body = json.encode(body) }
-  if err ~=nil or response.status ~= 200 then
+  if err ~= nil or response.status ~= 200 then
     return {result = response, error = err, message = "Something went wrong. Can't restore the key."}
   end
   return response
 end
 
-function purge_key(headers, key_vault, key_name) 
+function purge_key(headers, key_vault, key_name)
   local url = 'https://'.. key_vault ..'.vault.azure.net/deletedkeys/'..key_name..'?api-version=7.0'
-   local response, err = request { method = 'DELETE', url = url, headers = headers, body='' }
+  local response, err = request { method = 'DELETE', url = url, headers = headers, body='' }
   return response, err
-end  
-  
+end
+
 function is_valid_sdkms_key(name)
-  local response1, err1 = Sobject {name = name}
-  if err1 ~=nil or response1 == nil then
+  local response, err = Sobject {name = name}
+  if err ~= nil or response == nil then
     return false
   end
   return true
 end
 
-function is_valid_cloud_key(headers, key_vault, name)  
-  url = 'https://'.. key_vault ..'.vault.azure.net/keys/'..name..'?api-version=7.0'
-  local response2, err2 = request {method = 'GET', url = url, headers = headers, body = ''}
-  if err2 ~= nil or response2.status ~= 200 then
+function is_valid_cloud_key(headers, key_vault, name)
+  local url = 'https://'.. key_vault ..'.vault.azure.net/keys/'..name..'?api-version=7.0'
+  local response, err = request {method = 'GET', url = url, headers = headers, body = ''}
+  if err ~= nil or response.status ~= 200 then
     return false
   end
   return true
@@ -777,7 +781,7 @@ end
 
 function to_hex(byte)
   str = ""
-  for i = 1, #byte do 
+  for i = 1, #byte do
     local output = string.format("%02x", byte[i])
     str = str..output
   end
@@ -796,11 +800,11 @@ function _read(buffer)
     s = buffer[offset]
     local byte = table.slice(buffer, offset+1, offset+s)
     offset = offset + s
-    return  to_hex(byte) 
+    return to_hex(byte)
   end
-    
+
   local str = ""
-  for i = offset+1, offset+s, 1 do 
+  for i = offset+1, offset+s, 1 do
     local output = string.format("%02x", buffer[i])
     str = str..output
   end

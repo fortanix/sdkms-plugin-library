@@ -1,5 +1,5 @@
 -- Name: Self-Defending KMS-Azure Bring Your Own Key (BYOK) Managed HSM
--- Version: 1.1
+-- Version: 1.2
 -- Description: This plugin implements the Bring your own key (BYOK) HSM model for Azure managed HSMs. Using this plugin you can keep your key inside Fortanix DSM and use BYOK features of Azure managed HSM.
 -- ## Introduction
 -- 
@@ -220,9 +220,7 @@
 -- - [Azure HSM BYOK](https://docs.microsoft.com/en-us/azure/key-vault/keys/hsm-protected-keys)
 -- 
 -- ## Release Notes
---  Initial release
---
--- ## Release Notes
+-- - Initial release
 -- - Better error handling
 
 --[[
@@ -271,6 +269,7 @@ function prepad_signed(str)
     return str
   end
 end
+
 function base64url_encode(str)
   local blob = Blob.from_bytes(str)
   local base64 = blob:base64()
@@ -279,6 +278,7 @@ function base64url_encode(str)
   base64 = base64:gsub('=', '')
   return base64
 end
+
 function save_credentials(tenant_id, client_id, client_secret)
   local name = Blob.random { bits = 64 }:hex()
   local secret, err = Sobject.import{ name = name, obj_type = 'SECRET', value = Blob.from_bytes(client_secret), custom_metadata = {['TenantId'] = tenant_id, ['ClientId'] = client_id }}
@@ -288,6 +288,7 @@ function save_credentials(tenant_id, client_id, client_secret)
   end
   return {secret_id = secret.kid, error = nil}
 end
+
 function login(secret_id)
   local sobject, err = Sobject { id = secret_id }
   if sobject == nil then
@@ -305,19 +306,26 @@ function login(secret_id)
   local headers = { ['Content-Type'] = 'application/x-www-form-urlencoded'}
   local url = 'https://login.microsoftonline.com/'.. tenant_id ..'/oauth2/token'
   local request_body = 'grant_type=client_credentials&client_id='..client_id..'&client_secret='..client_secret..'&resource=https%3A%2F%2Fmanagedhsm.azure.net'
-  local response = request { method = 'POST', url = url, headers = headers, body=request_body }
+  local response, err = request { method = 'POST', url = url, headers = headers, body=request_body }
+  if err ~= nil then
+    return {result = nil, error = err}
+  end
   if response.status ~= 200 then
     return {result = nil, error = json.decode(response.body)}
   end
   return {result = json.decode(response.body).access_token, error = nil}
 end
+
 function config_kek_key(headers, kek_key_kid)
   -- TODO: Remove hardcoded values
   -- only work for 2048 kek key
   local prefix = '30820122300D06092A864886F70D01010105000382010F003082010A02820101'
   local suffix = '0203010001'
   local url = kek_key_kid .. '?api-version=7.0'
-  local response = request { method = 'GET' , url = url, headers = headers, body='' }
+  local response, err = request { method = 'GET' , url = url, headers = headers, body='' }
+  if err ~= nil then
+    return {result = nil, error = err}
+  end
   if response.status ~= 200 then
     return {result = nil, error = response}
   end
@@ -332,6 +340,7 @@ function config_kek_key(headers, kek_key_kid)
   end
   return {result = sobject, error = nil}
 end
+
 function create_wrapping_key()
   local name = Blob.random { bits = 64 }:hex()
   local sobject, err = Sobject.create { name = name, obj_type = 'AES', key_size = 256, key_ops = {'EXPORT', 'WRAPKEY'}, transient = true}
@@ -341,6 +350,7 @@ function create_wrapping_key()
   end
   return {result = sobject, error = nil}
 end
+
 function create_target_key(name, key_type, key_size)
   local sobject, err = Sobject.create { name = name, obj_type = key_type, key_size = key_size, key_ops = {'EXPORT'}}
   if sobject == nil then
@@ -349,6 +359,7 @@ function create_target_key(name, key_type, key_size)
   end
   return {result = sobject, error = nil}
 end
+
 function wrap_wrapping_key(wrapping_key, kek_key)
   local wrap_response, err = kek_key:wrap { subject = wrapping_key, mode = 'OAEP_MGF1_SHA1', alg = 'RSA'}
   if wrap_response == nil then
@@ -357,6 +368,7 @@ function wrap_wrapping_key(wrapping_key, kek_key)
   end
   return {result = wrap_response.wrapped_key:bytes(), error = nil}
 end
+
 function wrap_target_key(wrapping_key, target_key, target_key_type)
   local wrap_response, err
   if target_key_type == "RSA" then
@@ -371,6 +383,7 @@ function wrap_target_key(wrapping_key, target_key, target_key_type)
   end
   return {result = wrap_response.wrapped_key:bytes(), error = nil}
 end
+
 function generate_byok(wrapped_wrapping_key, wrapped_target_key, kek_key_kid)
     local header = {
         kid = kek_key_kid,
@@ -387,6 +400,7 @@ function generate_byok(wrapped_wrapping_key, wrapped_target_key, kek_key_kid)
     }
     return byok
 end
+
 function perform_byok(headers, byok, name, key_vault, target_key_kty)
     local url = "https://" .. key_vault .. ".managedhsm.azure.net/keys/" .. name .. "?api-version=7.0"
     local b64 = json.encode(byok)
@@ -397,6 +411,9 @@ function perform_byok(headers, byok, name, key_vault, target_key_kty)
         }
     }
     local response, err = request { method = "PUT", url = url, headers = headers, body = json.encode(body) }
+    if err ~= nil then
+      return {result = nil, error = err}
+    end
     if response.status ~= 200 then
         return { result = nil, error = response, body = body }
     end
@@ -405,22 +422,25 @@ function perform_byok(headers, byok, name, key_vault, target_key_kty)
     sobject:update{custom_metadata = { AZURE_KEY_ID = json.decode(response.body).key.kid}}
     return {result = json.decode(response.body), error = nil}
 end
+
 function list_keys(headers, key_vault)
   local url = 'https://'.. key_vault ..'.managedhsm.azure.net/keys?api-version=7.0'
   local response, err = request { method = 'GET', url = url, headers = headers, body='' }
-  if err ~=nil or response.status ~= 200 then
+  if err ~= nil or response.status ~= 200 then
     return {result = response, error = err, message = "Something went wrong. Can't list the keys."}
   end
   return {result = json.decode(response.body), error = nil}
 end
+
 function delete_key(headers, key_vault, key_name)
   local url = 'https://'.. key_vault ..'.managedhsm.azure.net/keys/'.. key_name ..'?api-version=7.0'
   local response = request { method = 'DELETE', url = url, headers = headers, body='' }
-  if err ~=nil or response.status ~= 200 then
+  if err ~= nil or response.status ~= 200 then
     return {result = response, error = err, message = "Something went wrong. Can't delete the key."}
   end
   return {result = json.decode(response.body), error = nil}
 end
+
 function is_valid(operation)
   local opr = {'configure', 'create', 'delete', 'list'}
   for i=1,#opr do
@@ -430,21 +450,24 @@ function is_valid(operation)
   end
   return false
 end
+
 function is_valid_sdkms_key(name)
-  local response1, err1 = Sobject {name = name}
-  if err1 ~=nil or response1 == nil then
+  local response, err = Sobject {name = name}
+  if err ~= nil or response == nil then
     return false
   end
   return true
 end
+
 function is_valid_cloud_key(headers, key_vault, name)
   url = 'https://'.. key_vault ..'.managedhsm.azure.net/keys/'..name..'?api-version=7.0'
-  local response2, err2 = request {method = 'GET', url = url, headers = headers, body = ''}
-  if err2 ~= nil or response2.status ~= 200 then
+  local response, err = request {method = 'GET', url = url, headers = headers, body = ''}
+  if err ~= nil or response.status ~= 200 then
     return false
   end
   return true
 end
+
 function check(input)
   if input.operation == 'configure' then
     if input.tenant_id == nil then
@@ -468,6 +491,7 @@ function check(input)
     end
   end
 end
+
 function run(input)
   if not is_valid(input.operation) then
     return {result = nil, error = "Operation is not valid. Operation value should be one of `configure`, `create`, `list`, or `delete`."}

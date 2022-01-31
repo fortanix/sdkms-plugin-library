@@ -1,6 +1,6 @@
 {
   "name": "Fortanix DSM-Azure Bring Your Own Key (BYOK) Managed HSM",
-  "version": 1.1,
+  "version": 1.2,
   "short_description": "This plugin implements the Bring your own key (BYOK) HSM model for Azure managed HSMs. Using this plugin you can keep your key inside Fortanix DSM and use BYOK features of Azure managed HSM.",
   "release_notes": [
     "Better error handling"

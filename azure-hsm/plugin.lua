@@ -1,5 +1,5 @@
 -- Name: Self-Defending KMS-Azure Bring Your Own Key (BYOK) HSM
--- Version: 1.1
+-- Version: 1.2
 -- Description: This plugin implements the Bring your own key (BYOK) HSM model for Azure cloud. Using this plugin you can keep your key inside Fortanix Self-Defending KMS and use BYOK features of Azure key vault.
 -- ## Introduction
 -- 
@@ -304,7 +304,10 @@ function login(secret_id)
   local headers = { ['Content-Type'] = 'application/x-www-form-urlencoded'}
   local url = 'https://login.microsoftonline.com/'.. tenant_id ..'/oauth2/token'
   local request_body = 'grant_type=client_credentials&client_id='..client_id..'&client_secret='..client_secret..'&resource=https%3A%2F%2Fvault.azure.net'
-  local response = request { method = 'POST', url = url, headers = headers, body=request_body }
+  local response, err = request { method = 'POST', url = url, headers = headers, body=request_body }
+  if err ~= nil then
+    return {result = nil, error = err}
+  end
   if response.status ~= 200 then
     return {result = nil, error = json.decode(response.body)}
   end
@@ -317,7 +320,10 @@ function config_kek_key(headers, kek_key_kid)
   local prefix = '30820122300D06092A864886F70D01010105000382010F003082010A02820101'
   local suffix = '0203010001'
   local url = kek_key_kid .. '?api-version=7.0'
-  local response = request { method = 'GET' , url = url, headers = headers, body='' }
+  local response, err = request { method = 'GET' , url = url, headers = headers, body='' }
+  if err ~= nil then
+    return {result = nil, error = err}
+  end
   if response.status ~= 200 then
     return {result = nil, error = response}
   end
@@ -382,7 +388,10 @@ function perform_byok(headers, byok, name, key_vault)
   local url = "https://" .. key_vault .. ".vault.azure.net/keys/" .. name .. "?api-version=7.0"
   local b64 = Blob.from_bytes(byok):base64()
   local body = "{ 'key': { 'kty': 'RSA-HSM', 'key_hsm':".. "'" .. b64 .. "'" .. "} }"
-  local response = request { method = "PUT", url = url, headers = headers, body=body }
+  local response, err = request { method = "PUT", url = url, headers = headers, body=body }
+  if err ~= nil then
+    return {result = nil, error = err}
+  end
   if response.status ~= 200 then
     return {result = nil, error = response}
   end
@@ -395,7 +404,7 @@ end
 function list_keys(headers, key_vault)
   local url = 'https://'.. key_vault ..'.vault.azure.net/keys?api-version=7.0'
   local response, err = request { method = 'GET', url = url, headers = headers, body='' }
-  if err ~=nil or response.status ~= 200 then
+  if err ~= nil or response.status ~= 200 then
     return {result = response, error = err, message = "Something went wrong. Can't list the keys."}
   end
   return {result = json.decode(response.body), error = nil}
@@ -404,7 +413,7 @@ end
 function delete_key(headers, key_vault, key_name)
   local url = 'https://'.. key_vault ..'.vault.azure.net/keys/'.. key_name ..'?api-version=7.0'
   local response = request { method = 'DELETE', url = url, headers = headers, body='' }
-  if err ~=nil or response.status ~= 200 then
+  if err ~= nil or response.status ~= 200 then
     return {result = response, error = err, message = "Something went wrong. Can't delete the key."}
   end
   return {result = json.decode(response.body), error = nil}
@@ -421,8 +430,8 @@ function is_valid(operation)
 end
 
 function is_valid_sdkms_key(name)
-  local response1, err1 = Sobject {name = name}
-  if err1 ~=nil or response1 == nil then
+  local response, err = Sobject {name = name}
+  if err ~= nil or response == nil then
     return false
   end
   return true
@@ -430,8 +439,8 @@ end
 
 function is_valid_cloud_key(headers, key_vault, name)
   url = 'https://'.. key_vault ..'.vault.azure.net/keys/'..name..'?api-version=7.0'
-  local response2, err2 = request {method = 'GET', url = url, headers = headers, body = ''}
-  if err2 ~= nil or response2.status ~= 200 then
+  local response, err = request {method = 'GET', url = url, headers = headers, body = ''}
+  if err ~= nil or response.status ~= 200 then
     return false
   end
   return true
