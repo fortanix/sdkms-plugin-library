@@ -1,9 +1,4 @@
 # FORTANIX SELF-DEFENDING KMS-AZURE BRING YOUR OWN KEY (BYOK) HSM PLUGIN
----
-
-## Short Description
-
-This plugin implements the Bring your own key (BYOK) HSM model for Azure cloud. Using this plugin you can keep your key inside Fortanix Self-Defending KMS and use BYOK features of Azure key vault.
 
 ## Introduction
 
@@ -11,20 +6,20 @@ The cloud services provide many advantages but the major disadvantage of cloud p
 
 ## Requirenment
 
-- Fortanix Self-Defending KMS Version >= 3.17.1330
+- Fortanix DMS Version >= 3.17.1330
 
 ## Use cases
 
 The plugin can be used to
 
-- Push Fortanix Self-Defending KMS key in Azure HSM key vault
+- Push Fortanix DSM key in Azure HSM key vault
 - List Azure BYOK key
-- Delete key in Fortanix Self-Defending KMS and corresponding key in Azure key vault
+- Delete key in Fortanix DSM and corresponding key in Azure key vault
 
 ## Setup
 
 - Log in to https://portal.azure.com/
-- Register an app in Azure cloud (Note down the Application (client) ID, Directory (tenant) ID, and client secret of this app). We will configure this information in Fortanix Self-Defending KMS
+- Register an app in Azure cloud (Note down the Application (client) ID, Directory (tenant) ID, and client secret of this app). We will configure this information in Fortanix DSM
 - Create a premium Azure key vault
 - Add the above app in the `Access Policy` of the above key vault
 - Create KEK key in Azure key vault
@@ -37,12 +32,13 @@ az keyvault key create --kty RSA-HSM --size 2048 --name <KEY-NAME> --ops import 
 
 ### Configure operation
 
-This operation configures Azure app credential in Fortanix Self-Defending KMS and returns a UUID. You need to pass this UUID for other operations. This is a one time process.
+This operation configures Azure app credential in Fortanix DSM and returns a UUID. You need to pass this UUID for other operations. This is a one time process.
 
 * `operation`: The operation which you want to perform. A valid value is `configure`.
 * `tenant_id`: Azure tenant ID
 * `client_id`: Azure app ID or client ID
 * `client_secret`: Azure app secret
+* `credential_group_id`: This is the group ID of DSM group where Azure credential will be stored. This field is optional. If not provide, default group ID of the plugin is used
 
 #### Example
 
@@ -63,17 +59,19 @@ Output JSON
 }
 ```
 
-### create operation
+### create and copy operation
 
-This operation will create an RSA key in Fortanix Self-Defending KMS and impot it in Azure key vault.
+Create operation will create an RSA key in Fortanix DSM and import it in Azure key vault. Copy operation will take an existing RSA key in Fortanix DSM and import it into Azure Key vault
 
 #### Parameters
 
-* `operation`: The operation which you want to perform. A valid value is `create`
+* `operation`: The operation which you want to perform. Valid values are `create` or `copy`
 * `key_name`: Name of the key
 * `key_vault`: Azure key vault name
 * `kek_key_kid`: Azure Key Exchange Key (KEK) ID
 * `secret_id`: The response of `configuration` operation. 
+* `source_group_id`: This is the group ID of DSM group where key will be created in case of create operation. This field is optional. If not provide, default group ID of the plugin is used
+* `rotate_key_in_azure` : This field is optional and valid values are `true` or `false`. This is applicable in case of `copy` operation. If its value is true, then the copy operation will create a new version of the key in Azure
 
 Input JSON
 ```
@@ -162,7 +160,7 @@ Output JSON
 
 ### Delete Key operation
 
-This operation will delete a key in Fortanix Self-Defending KMS as well as Azure key vault.
+This operation will delete a key in Fortanix DSM as well as Azure key vault.
 
 #### Parameters
 
