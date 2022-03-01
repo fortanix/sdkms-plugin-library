@@ -30,6 +30,15 @@ delete key
   "key_vault": "test-hsm-keyvault",
   "secret_id": "75803498-b97f-430e-8fd3-bfd995ffe958"
 }
+
+restore key
+{
+  "operation": "restore",
+  "key_name": "test-key",
+  "key_vault": "test-hsm-keyvault",
+  "secret_id": "75803498-b97f-430e-8fd3-bfd995ffe958"
+}
+
 ]]--
 
 TOOL_NAME = 'SDKMS Azure HSM BYOK'
@@ -179,8 +188,16 @@ function perform_byok(headers, byok, name, key_vault)
     return {result = nil, error = response}
   end
   -- Update target key
-  sobject = Sobject { name = name }
-  sobject:update{custom_metadata = { AZURE_KEY_ID = json.decode(response.body).key.kid}}
+  local sobject = Sobject { name = name }
+  local azure_kid = json.decode(response.body).key.kid
+  sobject:update{custom_metadata = { AZURE_KEY_ID = azure_kid }}
+
+  -- Backup the Azure key
+  local backup_resp, err = backup_key (headers, key_vault, name, azure_kid)
+  if err ~= nil then
+    return {result = nil, error = err}
+  end
+
   return {result = json.decode(response.body), error = nil}
 end
 
@@ -203,7 +220,7 @@ function delete_key(headers, key_vault, key_name)
 end
 
 function is_valid(operation)
-  local opr = {'configure', 'create', 'copy', 'delete', 'list'}
+  local opr = {'configure', 'create', 'copy', 'delete', 'list', 'restore'}
   for i=1,#opr do
     if opr[i] == operation then
       return true
@@ -245,6 +262,49 @@ function is_valid_cloud_key(headers, key_vault, name)
   return true
 end
 
+function backup_key(headers, key_vault, key_name, azure_kid)
+  local url = 'https://'.. key_vault ..'.vault.azure.net/keys/'.. key_name ..'/backup?api-version=7.0'
+  local response, err = request { method = 'POST', url = url, headers = headers, body='' }
+  if err ~= nil or response.status ~= 200 then
+    return {result = response, error = err, message = "Something went wrong. Can't backup the key."}
+  end
+  local blob = json.decode(response.body).value
+
+  local backup_name = key_name .. '_azure_backup'
+
+  -- rename the old backup
+  local prev_backupSo, err  = Sobject { name = backup_name }
+  if err == nil then
+	  local prev_azure_kid = prev_backupSo.custom_metadata['AZURE_KEY_ID']
+	  local rename_backupSo = backup_name .. '_version_' .. prev_azure_kid
+	  prev_backupSo:update {name = rename_backupSo}
+  end
+
+  -- import as opaque object
+  local sobject = assert(Sobject.import { name = backup_name, obj_type = "OPAQUE", value = Blob.from_base64(blob), key_ops = {'EXPORT'}, custom_metadata = { AZURE_KEY_ID = azure_kid }})
+
+  return {result = sobject, error = nil}
+end
+
+function restore_key(headers, key_vault, name)
+ local url = 'https://'..key_vault..'.vault.azure.net/keys/restore?api-version=7.0'
+  local backup_keyname = name .. '_azure_backup'
+  local backupSo, err = Sobject { name = backup_keyname }
+  if err ~= nil then
+    return {result = response, error = err, message = "Backup not found"}
+  end
+
+  local exported_value = backupSo:export().value
+  local body = {
+    value = exported_value
+  }
+  local response, err = request { method = 'POST', url = url, headers = headers, body = json.encode(body) }
+  if err ~= nil or response.status ~= 200 then
+    return {result = response, error = err, message = "Something went wrong. Can't restore the key."}
+  end
+  return response
+end
+
 
 function check(input)
   if input.operation == 'configure' then
@@ -257,7 +317,7 @@ function check(input)
     if input.client_secret == nil then
       return nil, 'input parameter client_secret required'
     end
-  elseif input.operation == 'create' or input.operation == 'copy' then
+  elseif input.operation == 'create' or input.operation == 'copy' or input.operation == 'restore' then
     if input.key_name == nil then
       return nil, 'input parameter key_name required'
     end
@@ -350,8 +410,13 @@ function run(input)
         return "Something went wrong or key does not exist in Azure cloud or in DSM."
       end
       return delete_key(headers, input.key_vault, input.key_name)
+    elseif input.operation == 'restore' then
+      if is_valid_cloud_key(headers, input.key_vault, input.key_name) then
+        return "Cannot restore. Azure still has a key with this name"
+      end
+      return restore_key(headers, input.key_vault, input.key_name)
     else
-      return {result = '', error = "Operation is not valid. Operation value should be one of `configure`, `create`, `list`, or `delete`."}
+      return {result = '', error = "Operation is not valid. Operation value should be one of `configure`, `create`, `list`, `delete` or `restore`."}
     end
   end
 end

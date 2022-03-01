@@ -61,7 +61,12 @@ Output JSON
 
 ### create and copy operation
 
-Create operation will create an RSA key in Fortanix DSM and import it in Azure key vault. Copy operation will take an existing RSA key in Fortanix DSM and import it into Azure Key vault
+Create operation will create an RSA key in Fortanix DSM and import it in Azure key vault.
+Copy operation will take an existing RSA key in Fortanix DSM and import it into Azure Key vault.
+Azure key blob backup is downloaded into an Opaque key in DSM with `<key-name>_azure_backup` name,
+which can later be used in the `restore` operation. 
+If an exsisting backup is found, then that Opaque key will be renmaed to include the
+azure version in the fortmat `<key-name>_azure_backup_version_<azure-key-id>`
 
 #### Parameters
 
@@ -211,6 +216,37 @@ Output JSON
     },
     "recoveryId": "https://test-hsm-keyvault.vault.azure.net/deletedkeys/test-key"
   }
+}
+```
+
+### Restore Key operation
+
+This operation will restore a key in Azure key vault.
+`<key-name>_azure_backup` , which was created during create/copy, is used to
+perform this restore operation. Azure allows restore only if the key is completely
+deleted (i.e. it should be purged in Azure).
+
+#### Parameters
+
+* `operation`: The operation which you want to perform. A valid value is `restore`.
+* `key_name`: Name of the key
+* `key_vault`: Azure key vault name
+* `secret_id`: The response of `configuration` operation. 
+
+Input JSON
+```
+{
+  "operation": "restore",
+  "key_name": "test-key",
+  "key_vault": "test-hsm-keyvault",
+  "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
+}
+```
+
+Output JSON
+```
+{
+  "status": 200
 }
 ```
 
