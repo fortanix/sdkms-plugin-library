@@ -1,0 +1,8 @@
+{
+    "name": "AWS CloudTrail sync events with DSM keys in Cloud-Data-Control",
+    "version": 1.0,
+    "short_description": "This plugin can be used to synchronize events from AWS CloudTrail against keys in Fortanix DSM",
+    "release_notes": [
+      "Initial release"
+    ]
+}
