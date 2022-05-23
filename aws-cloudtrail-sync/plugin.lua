@@ -202,7 +202,8 @@ function list_aws_events(secret_id, attrib_keys, attrib_vals)
               when = innerEvent.eventTime, 
               what = innerEvent.eventName}
           if innerEvent.userIdentity then
-            if innerEvent.userIdentity.type ~= nil then event.who = innerEvent.userIdentity.type .. " <" end
+            if innerEvent.userIdentity.type ~= nil then event.who = innerEvent.userIdentity.type .. " <"
+            else event.who = "<" end
             if innerEvent.userIdentity.accountId ~= nil then event.who = event.who .. innerEvent.userIdentity.accountId end
             if innerEvent.userIdentity.userName ~= nil then event.who = event.who .. " ".. innerEvent.userIdentity.userName end
             if innerEvent.userIdentity.accessKeyId ~= nil then event.who = event.who .. " ".. innerEvent.userIdentity.accessKeyId end
