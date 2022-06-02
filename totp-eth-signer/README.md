@@ -1,18 +1,12 @@
-## Ethereum Signer
-
-Version: 1.0
-
-## Short Description
-
+# TOTP Ethereum Signer
 
 This plugin implements an Ethereum Signer. Each Ethereum Signer is paired with a `MASTER_KEY`. Several wallets can be added to each Ethereum Signer. Several keys can be added to each wallet.
 
-A wallet can optionally be registered to support 2FA using Time-based One-Time Passwords (TOTP). 
+A wallet can optionally be registered to support 2FA using Time-based One-Time Passwords (TOTP).
 
 To support TOTP, this plugin implements the algorithms described in RFC 6238 (TOTP). The code is adapted from https://github.com/remjey/luaotp/blob/v0.1-6/src/otp.lua
 
-Customers of B2C crypto-currency wallet providers can register with the secure 2FA service provided via this plugin. This provides them with additional security. Specifically, a customers assets cannot be spent without their explicit involvement in the transaction.  
-
+Customers of B2C crypto-currency wallet providers can register with the secure 2FA service provided via this plugin. This provides them with additional security. Specifically, a customers assets cannot be spent without their explicit involvement in the transaction.
 
 ## Use cases
 
