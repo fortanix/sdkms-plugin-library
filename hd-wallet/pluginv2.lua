@@ -7,7 +7,6 @@
 -- The plugin allows to derive child key (xprv, xpub) from a master key in a deterministic way, and/or sign transaction hashes for UTXO and ethereum type crypto coin.
 -- 
 -- ## Use cases
--- 
 -- The plugin can be used to
 -- 
 -- - Derive child key for UTXO
@@ -19,7 +18,6 @@
 -- - Sign transaction for XRP
 -- 
 -- ## Setup
--- 
 -- - Generate HD-Wallets master key manually
 -- **Example Master Key:** `xprv9s21ZrQH143K31xYSDQpPDxsXRTUcvj2iNHm5NUtrGiGG5e2DtALGdso3pGz6ssrdK4PFmM8NSpSBHNqPqm55Qn3LqFtT2emdEXVYsCzC2U` 
 -- - Import master key in SDKMS as secret raw key
@@ -56,7 +54,6 @@
 -- * `signature`: ECDSA signature
 -- 
 -- ## Example Input/Output JSON object for UTXO COIN (BTC, LTC, BCH, etc.)
--- 
 -- **Input JSON object**
 -- 
 -- ```
@@ -69,7 +66,6 @@
 -- ```
 -- 
 -- **Output JSON object**
--- 
 -- ```
 -- {
 --   "xprv": "xprv9uZghWCSYwDho7us3q1WLBjVYx2xzVJNT8qNo4P9i8wa3tQJYbffzztTF6wXjuorG49NXahqraWsrVUmy3uTJLkvSYXyDLnHHU1GJibUk2t",
@@ -80,7 +76,6 @@
 -- ```
 -- 
 -- ## Example Input JSON object for ETH
--- 
 -- ```
 -- {
 --    "masterKeyId": "5aef3e3f-7927-49b2-b252-bf84b6980f95",
@@ -100,13 +95,15 @@
 -- ```
 --
 -- ## References
--- 
 -- - https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
 -- - https://xrpl.org/sign.html
 -- 
 -- ### Release Notes
---  - Initial release
-
+--  V 1.0 Initial Release
+--
+--  V 2.0 
+--  - Added XRP Transaction Signature Support
+--  - Added Private Key flag and checking
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
 ----------      COMMON UTILITIES     ----------
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
@@ -117,14 +114,12 @@ function debug(msg)
   DEBUG[DEBUG_N] = msg
   DEBUG_N = DEBUG_N + 1
 end
-
 ----------------- Constant --------------------
 local PRIVATE_WALLET_VERSION =  "0488ADE4"
 local PUBLIC_WALLET_VERSION = "0488B21E"
 local FIRST_HARDENED_CHILD = 2147483648
 local PUBLIC_KEY_COMPRESSED_LENGTH = 33
 local N = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"
-
 ------------- BIP32 key structure -------------
 local key = {["version"]="",
     ["depth"]="",       -- 1 byte
@@ -141,13 +136,11 @@ function create_ASN1_private_key(key_byte)
   end
   return "302E0201010420".. key_byte .."A00706052B8104000A"
 end
-
 -- return hex of exported key
 function decode_key(exported_master_key_serialized)
   local blob = Blob.from_base58(exported_master_key_serialized)
   return blob:hex()
 end
-
 -- deserialize bip32 key
 function deserialize(exported_master_key_serialized)
     hex_key = decode_key(exported_master_key_serialized)
@@ -168,14 +161,12 @@ function deserialize(exported_master_key_serialized)
     key.checksum = string.sub(hex_key, 157, 164)
     return key
 end
-
 -- import ec key into sdkms
 -- this helps to evaluate public key from private key
 function import_ec_key(blob)
     local sobject = assert(Sobject.import { name = "ec", obj_type = "EC", elliptic_curve = "SecP256K1", value = blob, transient = true })
     return sobject
 end
-
 -- export secret key that holds the BIP32 master key --
 -- export BIP32 master key from SDKMS ---
 function export_secret_key(keyId)
@@ -189,25 +180,6 @@ end
 ---------- integer to bytearry impl -----------
 ---------- utils methods ----------------------
 local random = math.random
--- reverse an array element
-function reverse_array(arr)
-    local i, j = 1, #arr
-    while i < j do
-        arr[i], arr[j] = arr[j], arr[i]
-        i = i + 1
-        j = j - 1
-    end
-end
-
-function byte_array(int)
-    local bytes = {}
-    for i = 0, 3 do
-        bytes[i+1] = (int >> (i * 8)) & 0xFF
-    end
-    reverse_array(bytes)
-    return bytes
-end
-
 -- convert number into hex string 
 function num_2_hex(num, size)
     local hexstr = '0123456789ABCDEF'
@@ -223,15 +195,6 @@ function num_2_hex(num, size)
     end
     return s
 end
-
-local function get_UUID()
-    local template ='xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
-    return string.gsub(template, '[xy]', function (c)
-        local v = (c == 'x') and random(0, 0xf) or random(8, 0xb)
-        return string.format('%x', v)
-    end)
-end
-
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
 ------------- Parse Derivation Path -----------
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
@@ -253,13 +216,11 @@ function split(str, pat)
     end
     return t
 end
-
 -- extract co-ordinate from complate ec public key
 -- first half of last 64 bit is x-cordinate and second half is y-cordinate
 function extract_coordinates_from_ASN1_public_key(key_byte)
     return string.sub(key_byte, 49, 176)
 end
-
 -- return ec curve co-ordinate from private key
 function get_point_coordinates_from_private_key(key_byte)
     local asn1_ec_key = create_ASN1_private_key(key_byte)
@@ -269,7 +230,6 @@ function get_point_coordinates_from_private_key(key_byte)
     local coordinate = extract_coordinates_from_ASN1_public_key(asn1_public_key)
     return coordinate
 end
-
 -- compress key co-ordinate
 local TWO = BigNum.from_bytes_be(Blob.from_hex("02"))
 local ZERO = BigNum.from_bytes_be(Blob.from_hex("00"))
@@ -280,7 +240,6 @@ function is_even(n)
     return false
   end
 end
-
 function compress_public_key(x, y)
     local a = BigNum.from_bytes_be(Blob.from_hex(y))
     local b = BigNum.from_bytes_be(Blob.from_hex("02"))
@@ -292,19 +251,16 @@ function compress_public_key(x, y)
         return "03"..x
     end 
 end
-
 -- return public key from private key 
 function public_key_for_private_key(key_byte)
     local point = get_point_coordinates_from_private_key(key_byte)
     return compress_public_key(string.sub(point, 1, 64), string.sub(point, 65, 128))
 end
-
 -- parse input path
 function parse_path(child_path)
     local path_table = split(child_path, "/")
     return path_table
 end
-
 -- import chain-code as hmac key
 -- sign data as from hmac key
 function get_hmac(hmac_key, data)
@@ -312,14 +268,12 @@ function get_hmac(hmac_key, data)
     local mac =  assert(sobject:mac { data = Blob.from_hex(data), alg = 'SHA512'}).digest
     return mac:hex()
 end
-
 -- return ripmd160 digest
 function hash160(data)
     local sha256_hash = assert(digest { data = Blob.from_hex(data), alg = 'SHA256' }).digest:hex()
     local ripmd160_hash = assert(digest { data = Blob.from_hex(sha256_hash), alg = 'RIPEMD160' }).digest
     return ripmd160_hash:hex()
 end
-
 -- add private keys
 function add_private_keys(k1, k2)
     local a = BigNum.from_bytes_be(Blob.from_hex(k1))
@@ -333,7 +287,6 @@ function add_private_keys(k1, k2)
     end
     return hex_key
 end
-
 -- return scalar addition of point
 function addPublicKeys(k1, k2)
     --[[ local x1 =  BigNum.from_bytes_be(Blob.from_hex(string.sub(k1, 1, 64)))
@@ -352,7 +305,6 @@ function addPublicKeys(k1, k2)
     local p3 = p1 + p2
     return compress_public_key(p3:x():to_bytes_be():hex(), p3:y():to_bytes_be():hex())
 end
-
 -- checksum: double sha256 of serialized key
 function get_check_sum(child_key)
     local child_key_string = child_key.version.. child_key.depth..  child_key.fingerprint.. child_key.index.. child_key.chain_code.. child_key.key
@@ -360,7 +312,6 @@ function get_check_sum(child_key)
     local sha256_hash2 = assert(digest { data =  Blob.from_hex(sha256_hash1), alg = 'SHA256' }).digest:hex()
     return sha256_hash2
 end
-
 -- derive new child key from parent key
 function derive_new_child(parent_key, child_idx)
     local data = ""
@@ -409,7 +360,6 @@ function derive_new_child(parent_key, child_idx)
   
     return child_key
 end
-
 -- serialize child key and encode into base58
 function serialize(child_key)
     local child_key_string = table.concat({child_key.version, child_key.depth, child_key.fingerprint, child_key.index, 
@@ -418,11 +368,9 @@ function serialize(child_key)
     local blob = Blob.from_hex(child_key_string)
     return  blob:base58()
 end
-
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
 -----------            ETH            -----------
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
-
 function get_rs(signature)
   local signature_length = tonumber(string.sub(signature, 3, 4), 16) + 2
 
@@ -449,7 +397,6 @@ function get_rs(signature)
     s = s
   }
 end
-
 function set_length_left(msg, len)
   local msg_len = string.len(msg)
   if (msg_len > len*2) then
@@ -460,7 +407,6 @@ function set_length_left(msg, len)
     return string.rep("0", len*2 - msg_len)..msg
   end
 end
-
 function get_eth_v(r,s)
   local a = BigNum.from_bytes_be(Blob.from_hex(r))
   local b = BigNum.from_bytes_be(Blob.from_hex("02"))
@@ -471,13 +417,11 @@ function get_eth_v(r,s)
     return "1C"
   end
 end
-
 function get_eth_signature(signature)
   local rs = get_rs(signature)
   local ethereum_signature = set_length_left(rs.r, 32)..set_length_left(rs.s, 32)
   return ethereum_signature..get_eth_v(rs.r, rs.s)
 end
-
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
 ----------- Main method for ETH       -----------
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
@@ -499,7 +443,6 @@ function sign_eth(input)
       signature = signature:hex():lower()
     }
 end
-
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
 ----------- Main method for XRP       -----------
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
@@ -521,7 +464,6 @@ function sign_xrp(input)
       signature = signature:hex():lower()
     }
 end
-
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
 ----------- Main method for UTXO      -----------
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
@@ -547,7 +489,6 @@ function sign_utxo(input)
     signature = signature:hex():lower()
   }
 end
-
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
 ----------- Main method for Import    -----------
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
@@ -564,7 +505,6 @@ function run_import(input)
     kid = sobject.kid
   }
 end
-
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
 ----------- Main method for Plugin    -----------
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
