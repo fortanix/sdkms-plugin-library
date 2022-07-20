@@ -138,7 +138,7 @@ function deserialize(exported_master_key_serialized)
     key.chain_code = string.sub(hex_key, 27, 90)
     key.key = string.sub(hex_key, 91, 156)
 
-    if key.version == "0488ADE4" then
+    if key.version == "0488ADE4" or key.version == "0x04358394" then
         key.is_private = 1
     else
         key.is_private = 0
