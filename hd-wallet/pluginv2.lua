@@ -217,21 +217,12 @@ function get_point_coordinates_from_private_key(key_byte)
     return coordinate
 end
 -- compress key co-ordinate
-local TWO = BigNum.from_bytes_be(Blob.from_hex("02"))
-local ZERO = BigNum.from_bytes_be(Blob.from_hex("00"))
-function is_even(n)
-  if (n % TWO):to_bytes_be() == ZERO:to_bytes_be() then
-    return true
-  else
-    return false
-  end
-end
 function compress_public_key(x, y)
     local a = BigNum.from_bytes_be(Blob.from_hex(y))
     local b = BigNum.from_bytes_be(Blob.from_hex("02"))
     local c = BigNum.from_bytes_be(Blob.from_hex("00"))
 
-    if is_even(a) then
+    if (a % b):to_bytes_be() == c:to_bytes_be() then
         return "02"..x
     else 
         return "03"..x
