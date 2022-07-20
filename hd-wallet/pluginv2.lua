@@ -108,12 +108,12 @@ local PUBLIC_KEY_COMPRESSED_LENGTH = 33
 local N = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"
 ------------- BIP32 key structure -------------
 local key = {["version"]="",
-    ["depth"]="",       -- 1 byte
-    ["index"]="",       -- 4 byte child number
-    ["fingerprint"]="", -- 4 byte parent fingerprint
-    ["chain_code"]="",  -- 32 byte
-    ["key"]="",         -- 33 byte long key
-    ["checksum"]="",    -- checksum of all above
+    ["depth"]="",        -- 1 byte
+    ["index"]="",        -- 4 byte child number
+    ["fingerprint"]="",  -- 4 byte parent fingerprint
+    ["chain_code"]="",   -- 32 byte
+    ["key"]="",          -- 33 byte long key
+    ["checksum"]="",     -- checksum of all above
     ["is_private"] = ""} -- 1 bit flag
 
 function create_ASN1_private_key(key_byte)
@@ -274,9 +274,7 @@ function add_private_keys(k1, k2)
     return hex_key
 end
 -- return scalar addition of point
-function addPublicKeys(k1, k2)
-    --[[ local x1 =  BigNum.from_bytes_be(Blob.from_hex(string.sub(k1, 1, 64)))
-    local y1 =  BigNum.from_bytes_be(Blob.from_hex(string.sub(k1, 65, 128))) ]]--
+function add_public_keys(k1, k2)
     local secP256K1 =EcGroup.from_name('SecP256K1')
     local comp_key_1 = Blob.from_hex(k1)
   	local pt_1 = secP256K1:point_from_binary(comp_key_1)
@@ -339,7 +337,7 @@ function derive_new_child(parent_key, child_idx)
         fingerprint = hash160(parent_key.key)
         child_key.fingerprint = string.sub(fingerprint, 1, 8)
         key_bytes = public_key_for_private_key(string.sub(hmac, 1, 64))
-        child_key.key = addPublicKeys(key_bytes, parent_key.key)
+        child_key.key = add_public_keys(key_bytes, parent_key.key)
     end
     
    child_key.checksum = string.sub(get_check_sum(child_key), 1, 8)
