@@ -275,17 +275,11 @@ function add_private_keys(k1, k2)
 end
 -- return scalar addition of point
 function add_public_keys(k1, k2)
-    local secP256K1 =EcGroup.from_name('SecP256K1')
-    local comp_key_1 = Blob.from_hex(k1)
-  	local pt_1 = secP256K1:point_from_binary(comp_key_1)
-    local x1 = pt_1:x()
-    local y1 = pt_1:y()
-  	local comp_key_2 = Blob.from_hex(k2)
-  	local pt = secP256K1:point_from_binary(comp_key_2)
-    local x2 = pt:x()
-    local y2 = pt:y()
-  	local p1 = secP256K1:point_from_components(x1, y1)
-    local p2 = secP256K1:point_from_components(x2, y2)
+    local secP256K1 = EcGroup.from_name('SecP256K1')
+  	local pt_1 = secP256K1:point_from_binary(Blob.from_hex(k1))
+  	local pt_2 = secP256K1:point_from_binary(Blob.from_hex(k2))
+  	local p1 = secP256K1:point_from_components(pt_1:x(), pt_1:y())
+    local p2 = secP256K1:point_from_components(pt_2:x(), pt_2:y())
     local p3 = p1 + p2
     return compress_public_key(p3:x():to_bytes_be():hex(), p3:y():to_bytes_be():hex())
 end
