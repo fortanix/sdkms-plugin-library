@@ -64,105 +64,6 @@ echo 302a 3005 0603 2b65 7003 2100 "${gokey:64}" | xxd -p -r > $3
 }
 ```
 
-## Input/Output JSON object format
-
-### Message Type: Prevote (1)
-
- **Input**
-
-```
-{
- "type": 1, // `integer`
- "height": `integer`,
- "round": `integer`,
- "data": `base64`,
- "blockId_hash": `hex`,
- "blockId_parts_hash": `hex`,
- "blockId_parts_total": `integer`
-}
-```
-
-**Output**
-
-```
-{
-  "signature": `base64`
-}
-```
-
-**Error**
-```
-{
-  "message": `string`,
-  "status": `integer`
-}
-```
-
-### Message Type: Precommit (2)
-
- **Input**
-
-```
-{
- "type": 2, // `integer`
- "height": `integer`,
- "round": `integer`,
- "data": `base64`
- "blockId_hash": `hex`,
- "blockId_parts_hash": `hex`,
- "blockId_parts_total": `integer`
-}
-```
-
-**Output**
-
-```
-{
-  "signature": `base64`
-}
-```
-
-**Error**
-
-```
-{
-  "message": `string`,
-  "status": `integer`
-}
-```
-
-### Message Type: Proposal (32)
-
- **Input**
-
-```
-{
- "type": 32, // `integer`
- "height": `integer`,
- "round": `integer`,
- "data": `base64`,
- "blockId_hash": `hex`,
- "blockId_parts_hash": `hex`,
- "blockId_parts_total": `integer`
-}
-```
-
-**Output**
-
-```
-{
-  "signature": `base64`
-}
-```
-
-**Error**
-```
-{
-  "message": `string`,
-  "status": `integer`
-}
-```
-
 ## Sample Input
 
 ### Message Type: Prevote (1)
@@ -171,13 +72,20 @@ echo 302a 3005 0603 2b65 7003 2100 "${gokey:64}" | xxd -p -r > $3
 
 ```
 {
-   "type": 1,
-   "round": 1,
-   "height": 1,
-   "blockId_hash":"C70B62CB6647F7F160B0C44F0A8E21F978CA986E0ACB51E125AE33AD717CBC0D",
-   "blockId_parts_hash":"D12E6344822FA80ED9CFBCFA4DB3BB9B5D69655C702588E333D3BE86C9308B2C",
-   "data":"bAgBEQEAAAAAAAAAIkgKIHzK9toM6l0SqKkh+CJEMAONkYT64oYm2U+w8JKm27cdEiQIARIgLwiMygrMYMoq33+bwI60pF4WBOPPyaqpAtszzZiH9RwqDAiRxuKTBhC9zIqhAzIHdGVzdGh1Yg==",
-   "blockId_parts_total": 1
+  "block_id": {
+    "hash": "7CCAF6DA0CEA5D12A8A921F8224430038D9184FAE28626D94FB0F092A6DBB71D",
+    "part_set_header": {
+      "hash": "2F088CCA0ACC60CA2ADF7F9BC08EB4A45E1604E3CFC9AAA902DB33CD9887F51C",
+      "total": 1
+    }
+  },
+  "data": "bAgBEQEAAAAAAAAAIkgKIHzK9toM6l0SqKkh+CJEMAONkYT64oYm2U+w8JKm27cdEiQIARIgLwiMygrMYMoq33+bwI60pF4WBOPPyaqpAtszzZiH9RwqDAiRxuKTBhC9zIqhAzIHdGVzdGh1Yg==",
+  "height": 1,
+  "kid": "",
+  "pol_round": -99,
+  "req_type": 1,
+  "round": 0,
+  "step": 1
 }
 ```
 
@@ -185,7 +93,8 @@ echo 302a 3005 0603 2b65 7003 2100 "${gokey:64}" | xxd -p -r > $3
 
 ```
 {
-  "signature": "SgGG8XxAavBhrDn600vPfCBuS/LDrJfh/ujBCw54l1T3M924IhPWNOnyPhPAEqVhXsXutcJe6rtt97VpQ7vVDg=="
+  "status": 200,
+  "signature": "rCsFAhVoyhe5dr0/xjOPYDCD62FtsrNa98QJsjRrbfwlmwHUpPM3L8CfB+wI6uSKxYU8gtp9g1bVm7EDAXxqDA=="
 }
 ```
 
@@ -204,21 +113,24 @@ echo 302a 3005 0603 2b65 7003 2100 "${gokey:64}" | xxd -p -r > $3
 
 ```
 {
-   "type": 2,
-   "round": 1,
-   "height": 2,
-   "blockId_hash":"C70B62CB6647F7F160B0C44F0A8E21F978CA986E0ACB51E125AE33AD717CBC0D",
-   "blockId_parts_hash":"D12E6344822FA80ED9CFBCFA4DB3BB9B5D69655C702588E333D3BE86C9308B2C",
-   "data":"bAgBEQEAAAAAAAAAIkgKIHzK9toM6l0SqKkh+CJEMAONkYT64oYm2U+w8JKm27cdEiQIARIgLwiMygrMYMoq33+bwI60pF4WBOPPyaqpAtszzZiH9RwqDAiRxuKTBhC9zIqhAzIHdGVzdGh1Yg==",
-   "blockId_parts_total": 1
+  "block_id": null,
+  "data": "bAgBEQEAAAAAAAAAIkgKIHzK9toM6l0SqKkh+CJEMAONkYT64oYm2U+w8JKm27cdEiQIARIgLwiMygrMYMoq33+bwI60pF4WBOPPyaqpAtszzZiH9RwqDAiRxuKTBhC9zIqhAzIHdGVzdGh1Yg==",
+  "height": 10,
+  "kid": "",
+  "pol_round": -99,
+  "req_type": 2,
+  "round": 0,
+  "step": 1
 }
+
 ```
 
 **Output**
 
 ```
 {
-  "signature": "SgGG8XxAavBhrDn600vPfCBuS/LDrJfh/ujBCw54l1T3M924IhPWNOnyPhPAEqVhXsXutcJe6rtt97VpQ7vVDg=="
+  "status": 200,
+  "signature": "rCsFAhVoyhe5dr0/xjOPYDCD62FtsrNa98QJsjRrbfwlmwHUpPM3L8CfB+wI6uSKxYU8gtp9g1bVm7EDAXxqDA=="
 }
 ```
 
@@ -236,13 +148,20 @@ echo 302a 3005 0603 2b65 7003 2100 "${gokey:64}" | xxd -p -r > $3
 
 ```
 {
-   "type": 32,
-   "round": 1,
-   "height": 3,
-   "blockId_hash":"C70B62CB6647F7F160B0C44F0A8E21F978CA986E0ACB51E125AE33AD717CBC0D",
-   "blockId_parts_hash":"D12E6344822FA80ED9CFBCFA4DB3BB9B5D69655C702588E333D3BE86C9308B2C",
-   "data":"bAgBEQEAAAAAAAAAIkgKIHzK9toM6l0SqKkh+CJEMAONkYT64oYm2U+w8JKm27cdEiQIARIgLwiMygrMYMoq33+bwI60pF4WBOPPyaqpAtszzZiH9RwqDAiRxuKTBhC9zIqhAzIHdGVzdGh1Yg==",
-   "blockId_parts_total": 1
+  "block_id": {
+    "hash": "7CCAF6DA0CEA5D12A8A921F8224430038D9184FAE28626D94FB0F092A6DBB71D",
+    "part_set_header": {
+      "hash": "2F088CCA0ACC60CA2ADF7F9BC08EB4A45E1604E3CFC9AAA902DB33CD9887F51C",
+      "total": 1
+    }
+  },
+  "data": "dwggEQEAAAAAAAAAIP///////////wEqSAogfMr22gzqXRKoqSH4IkQwA42RhPrihibZT7Dwkqbbtx0SJAgBEiAvCIzKCsxgyirff5vAjrSkXhYE48/JqqkC2zPNmIf1HDIMCI/G4pMGEN3f17kDOgd0ZXN0aHVi",
+  "height": 100,
+  "kid": "",
+  "pol_round": -99,
+  "req_type": 32,
+  "round": 0,
+  "step": 0
 }
 ```
 
@@ -250,14 +169,15 @@ echo 302a 3005 0603 2b65 7003 2100 "${gokey:64}" | xxd -p -r > $3
 
 ```
 {
-  "signature": "SgGG8XxAavBhrDn600vPfCBuS/LDrJfh/ujBCw54l1T3M924IhPWNOnyPhPAEqVhXsXutcJe6rtt97VpQ7vVDg=="
+  "status": 200,
+  "signature": "rCsFAhVoyhe5dr0/xjOPYDCD62FtsrNa98QJsjRrbfwlmwHUpPM3L8CfB+wI6uSKxYU8gtp9g1bVm7EDAXxqDA=="
 }
 ```
 
 **Error**
 ```
 {
-  "message": "Double sign prevented.",
-  "status": 500
+  "status": 500,
+  "message": "Double sign prevented."
 }
 ```

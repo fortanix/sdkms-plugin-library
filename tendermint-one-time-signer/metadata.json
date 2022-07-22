@@ -1,6 +1,6 @@
 {
     "name": "Tendermint One Time Signer",
-    "version": 1.0,
+    "version": 1.1,
     "short_description": "The Tendermint One Time Signer plugin keeps track of certain state which it uses to determine whether to sign a message or not during the consensus process. The objective is to avoid double-signing, which can be harmful to the blockchain network.",
     "release_notes": [
       "Initial release"
