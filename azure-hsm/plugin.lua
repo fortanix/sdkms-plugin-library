@@ -102,29 +102,61 @@ function login(secret_id)
   return {result = json.decode(response.body).access_token, error = nil}
 end
 
-function config_kek_key(headers, kek_key_kid, source_group_id, is_transient)
-  -- TODO: Remove hardcoded values
-  -- only work for 2048 kek key
-  local prefix = '30820122300D06092A864886F70D01010105000382010F003082010A02820101'
-  local suffix = '0203010001'
-  local url = kek_key_kid .. '?api-version=7.0'
-  local response, err = request { method = 'GET' , url = url, headers = headers, body='' }
+function config_kek_key(headers, key_vault, kek_key_kid, generate_kek, kek_size, target_key_name, source_group_id, is_transient)
+  local response, err
+  local prefix
+  local suffix = '0203010001' -- This assumes e is 65537
+  if kek_size == 2048 then
+    prefix = '30820122300D06092A864886F70D01010105000382010F003082010A02820101'
+  elseif kek_size == 3072 then
+    prefix = '308201A2300D06092A864886F70D01010105000382018F003082018A02820181'
+  elseif kek_size == 4096 then
+    prefix = '30820222300D06092A864886F70D01010105000382020F003082020A02820201'
+  else
+    err = 'Unsupported KEK size'
+    return {result = nil, kek_id = nil, error = err}
+  end
+
+  if kek_key_kid ~= nil then
+    -- KEK Key Id is specified - Fetch the KEK
+    local url = kek_key_kid .. '?api-version=7.0'
+    response, err = request { method = 'GET' , url = url, headers = headers, body='' }
+  end
+  if generate_kek then
+    -- Generate KEK
+    local kek_name = 'kek-' .. target_key_name
+    local url = 'https://'.. key_vault ..'.vault.azure.net/keys/'.. kek_name ..'/create?api-version=7.0'
+    local kek_body = json.encode({
+        kty = 'RSA-HSM',
+        key_size =  kek_size,
+        key_ops = { 'import' },
+        attributes = {
+            recoveryLevel = 'Recoverable+Purgeable',
+            enabled = true
+        }
+    })
+    response, err = request { method = 'POST', url = url, headers = headers, body= kek_body }
+  end
+
   if err ~= nil then
-    return {result = nil, error = err}
+    return {result = nil, kek_id = nil, error = err}
   end
   if response.status ~= 200 then
-    return {result = nil, error = response}
+    return {result = nil, kek_id = nil, error = response}
   end
   local json_resp = json.decode(response.body)
   local modulus = json_resp['key']['n']
+  local kek_kid = json_resp['key']['kid']
+
+  -- Import KEK into DSM
   local name = Blob.random { bits = 64 }:hex()
   local encoded_kek_key = prefix ..  prepad_signed(Blob.from_base64(modulus):hex()) ..suffix
   local sobject, err = Sobject.import { name = name, obj_type = 'RSA', value = Blob.from_hex(encoded_kek_key), key_ops = {'EXPORT', 'WRAPKEY'}, group_id = source_group_id, transient = is_transient }
   if sobject == nil then
-    err.message = err.message .. '. Failed to import KEK key in DSM.'
-    return {result = nil, error = err}
+    err.message = err.message .. '. Failed to import KEK key in DSM. Please check your KEK size. If your KEK size is not 2048,  you must specify KEK size using input parameter kek_size. Please verify correct KEK size was specified in the input parameter kek_size'
+    return {result = nil, kek_id = nil, error = err}
   end
-  return {result = sobject, error = nil}
+  return {result = sobject, kek_id = kek_kid, error = nil}
 end
 
 function create_wrapping_key(source_group_id, is_transient)
@@ -137,12 +169,12 @@ function create_wrapping_key(source_group_id, is_transient)
   return {result = sobject, error = nil}
 end
 
-function create_target_key(name, source_group_id)
+function create_target_key(name, key_size, source_group_id)
   local sobject = Sobject { name = name }
   if sobject ~= nil then
     return {result = sobject, error = nil}
   end
-  local sobject, err = Sobject.create { name = name, obj_type = "RSA", key_size = 2048, key_ops = {'EXPORT'}, group_id = source_group_id,}
+  local sobject, err = Sobject.create { name = name, obj_type = "RSA", key_size = key_size, key_ops = {'EXPORT'}, group_id = source_group_id,}
   if sobject == nil then
     err.message = err.message .. '. Failed to create target key in DSM.'
     return {result = nil, error = err}
@@ -327,6 +359,12 @@ function check(input)
     if input.secret_id == nil then
       return nil, 'input parameter secret_id required'
     end
+    if input.kek_key_kid == nil and (input.generate_kek == nil or not input.generate_kek) then
+      return nil, 'input parameter kek_key_kid is required if generate_kek is not specified or is set to false'
+    end
+    if input.kek_key_kid ~= nil and (input.generate_kek ~=nil and input.generate_kek) then
+      return nil, 'input parameter kek_key_kid can not specified if generate_kek is set to true'
+    end
   end
 end
 
@@ -371,17 +409,27 @@ function run(input)
         is_transient = true
       end
 
-      local config_kek_key_resp = config_kek_key(headers, input.kek_key_kid, input.source_group_id, is_transient)
+      local kek_size = 2048 -- Default KEK Size is 2048
+      if input.kek_size ~= nil then
+          kek_size = input.kek_size
+      end
+      local target_key_size = 2048 -- Default Target Key Size is 2048
+      if input.key_size ~= nil then
+          target_key_size = input.key_size
+      end
+      local config_kek_key_resp = config_kek_key(headers, input.key_vault, input.kek_key_kid, input.generate_kek, kek_size, input.key_name, input.source_group_id, is_transient)
       if config_kek_key_resp.result == nil then
         return config_kek_key_resp
       end
+      local kek_key_kid = config_kek_key_resp.kek_id
+
       -- create wrapping key used to wrap target key
       local wrapping_key = create_wrapping_key(input.source_group_id, is_transient)
       if wrapping_key.result == nil then
         return wrapping_key
       end
       -- create target key; we will import encrypted target key in azure hsm key vault
-      local target_key = create_target_key(input.key_name, input.source_group_id)
+      local target_key = create_target_key(input.key_name, target_key_size, input.source_group_id)
       if target_key.result == nil then
         return target_key
       end
@@ -395,7 +443,7 @@ function run(input)
       if wrapped_target_key.result == nil then
         return wrapped_target_key
       end
-      local byok = generate_byok(wrapped_wrapping_key.result, wrapped_target_key.result, input.kek_key_kid)
+      local byok = generate_byok(wrapped_wrapping_key.result, wrapped_target_key.result, kek_key_kid)
       local response = perform_byok(headers, byok, input.key_name, input.key_vault)
       -- Delete if non transient KEK and Wrapping keys were created
       if not is_transient then

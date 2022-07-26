@@ -77,8 +77,11 @@ azure version in the fortmat `<key-name>_azure_backup_version_<azure-key-id>`
 * `secret_id`: The response of `configuration` operation. 
 * `source_group_id`: This is the group ID of DSM group where key will be created in case of create operation. This field is optional. If not provide, default group ID of the plugin is used
 * `rotate_key_in_azure` : This field is optional and valid values are `true` or `false`. This is applicable in case of `copy` operation. If its value is true, then the copy operation will create a new version of the key in Azure
+* `kek_size` : This field is optional. If not specified KEK size is assumed to be 2048. If KEK specified by `kek_key_kid` is of a different size, then this field must be set with correct KEK size. Allowed KEK size values are 2048, 3072 and 4096
+* `key_size` : This field is optional. If not specified targtet key size is assumed to be 2048. If target key of a different size is needed, then this field must be set with the require target key size in bits.
+* `generate_kek` : This field is optional and valid values are `true` or `false`. This can be set to `true` if plugin should generate KEK in Azure KeyVault. When this field is specified and set to `true`, then `kek_key_id` should not be specified
 
-Input JSON
+Input JSON - Using an existing KEK
 ```
 {
   "operation": "create",
@@ -116,6 +119,45 @@ Output JSON
   }
 ```
 
+Input JSON - Automatically generating KEK and using a different KEK and target key size
+```
+{
+  "operation": "create",
+  "key_name": "test-key2",
+  "key_vault": "test-hsm-keyvault",
+  "kek_size": 4096,
+  "key_size": 4096,
+  "generate_kek": true,
+  "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
+}
+```
+
+Output JSON
+```
+{
+  "result": {
+    "key": {
+      "n": "5FshKQ_5peJfFcer18EylSxbK94UErV0we_Z-v2EsTjcH_HZBWAUbAF0QJ_q0Qzy6nHA-u0DkAf63YTe3BhuUEU80Qek_pmZjfek4rgE53eSbrEqH7bYVxUEKSye3J_7oR-MMs4YkNqvyenBuLSv7QXZIcPu17zsNhIQrsv0MBdwV_QlewW9QQUeTPLbHUBV7m-r1gdffiINoRcGY9QvHb6dJphoOaNSzddUXm6Y21R7pwI2Lzo3MuEe2nwtOC-z_MW8jdsDNYxua4CipiGOe2Cqqg_wXsZcjpefzYqSGky2y3j7OoG1uHsafRqWatWTj_CHUPr-oII_r2_sGcxBrw",
+      "key_ops": [
+        "encrypt",
+        "decrypt",
+        "sign",
+        "verify",
+        "wrapKey",
+        "unwrapKey"
+      ],
+      "e": "AAEAAQ",
+      "kty": "RSA-HSM",
+      "kid": "https://test-hsm-keyvault.vault.azure.net/keys/test-key2/21dc7692b9184c1ba8e643db8b142356"
+    },
+    "attributes": {
+      "recoveryLevel": "Recoverable+Purgeable",
+      "enabled": true,
+      "updated": 1593584773,
+      "created": 1593584773
+    }
+  }
+```
 #### List Key operation
 
 This operation will list all the BYOK keys from azure.
