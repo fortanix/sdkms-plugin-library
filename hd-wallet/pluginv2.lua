@@ -104,18 +104,20 @@ end
 ----------------- Constant --------------------
 local PRIVATE_WALLET_VERSION =  "0488ADE4"
 local PUBLIC_WALLET_VERSION = "0488B21E"
-local FIRST_HARDENED_CHILD = 2147483648
+local FIRST_HARDENED_CHILD = "80000000"
 local PUBLIC_KEY_COMPRESSED_LENGTH = 33
 local N = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"
+
 ------------- BIP32 key structure -------------
-local key = {["version"]="",
-    ["depth"]="",        -- 1 byte
-    ["index"]="",        -- 4 byte child number
-    ["fingerprint"]="",  -- 4 byte parent fingerprint
-    ["chain_code"]="",   -- 32 byte
-    ["key"]="",          -- 33 byte long key
-    ["checksum"]="",     -- checksum of all above
-    ["is_private"] = ""} -- 1 bit flag
+local key = {
+    ["version"]     = "",
+    ["depth"]       = "", -- 1 byte
+    ["index"]       = "", -- 4 byte child number
+    ["fingerprint"] = "", -- 4 byte parent fingerprint
+    ["chain_code"]  = "", -- 32 byte
+    ["key"]         = "", -- 33 byte long key
+    ["checksum"]    = ""  -- checksum of all above
+}
 
 function create_ASN1_private_key(key_byte)
   while string.len(key_byte) < 64 do
@@ -140,12 +142,6 @@ function deserialize(exported_master_key_serialized)
     key.fingerprint = string.sub(hex_key, 19, 26)
     key.chain_code = string.sub(hex_key, 27, 90)
     key.key = string.sub(hex_key, 91, 156)
-
-    if key.version == "0488ADE4" or key.version == "0x04358394" then
-        key.is_private = 1
-    else
-        key.is_private = 0
-    end
 
     key.checksum = string.sub(hex_key, 157, 164)
     return key
@@ -190,25 +186,6 @@ end
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
 ------------- Parse Derivation Path -----------
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
-function split(str, pat)
-    local t = {}
-    local fpat = "(.-)" .. pat
-    local last_end = 1
-    local s, e, cap = str:find(fpat, 1)
-    while s do
-        if s ~= 1 or cap ~= "" then
-            table.insert(t,cap)
-        end
-        last_end = e+1
-        s, e, cap = str:find(fpat, last_end)
-    end
-    if last_end <= #str then
-        cap = str:sub(last_end)
-        table.insert(t, cap)
-    end
-    return t
-end
-
 -- extract co-ordinate from complate ec public key
 -- first half of last 64 bit is x-cordinate and second half is y-cordinate
 function extract_coordinates_from_ASN1_public_key(key_byte)
@@ -226,17 +203,13 @@ function get_point_coordinates_from_private_key(key_byte)
 end
 
 -- compress key co-ordinate
-function compress_public_key(x, y)
-    local a = BigNum.from_bytes_be(Blob.from_hex(y))
-    local b = BigNum.from_bytes_be(Blob.from_hex("02"))
-    local c = BigNum.from_bytes_be(Blob.from_hex("00"))
-
-    if (a % b):to_bytes_be() == c:to_bytes_be() then
+function compress_public_key2(x, y)
+    if y:sub(-1) % "02" == "00" then
         return "02"..x
-    else 
+    else
         return "03"..x
-    end 
-end
+    end
+end     
 
 -- return public key from private key 
 function public_key_for_private_key(key_byte)
@@ -246,16 +219,24 @@ end
 
 -- parse input path
 function parse_path(child_path)
-    local path_table = split(child_path, "/")
-    return path_table
-end
+    --Split Path
+    local path_table = {}
+    local fpat = "(.-)" .. "/"
+    local last_end = 1
+    local s, e, cap = child_path:find(fpat, 1)
+    while s do
+        if s ~= 1 or cap ~= "" then
+            table.insert(t,cap)
+        end
+        last_end = e+1
+        s, e, cap = child_path:find(fpat, last_end)
+    end
+    if last_end <= #child_path then
+        cap = child_path:sub(last_end)
+        table.insert(t, cap)
+    end
 
--- import chain-code as hmac key
--- sign data as from hmac key
-function get_hmac(hmac_key, data)
-    local sobject = assert(Sobject.import { name = "hmac", obj_type = "HMAC", value = Blob.from_hex(hmac_key), transient = true })
-    local mac =  assert(sobject:mac { data = Blob.from_hex(data), alg = 'SHA512'}).digest
-    return mac:hex()
+    return path_table
 end
 
 -- return ripmd160 digest
@@ -290,19 +271,12 @@ function add_public_keys(k1, k2)
     return compress_public_key(p3:x():to_bytes_be():hex(), p3:y():to_bytes_be():hex())
 end
 
--- checksum: double sha256 of serialized key
-function get_check_sum(child_key)
-    local child_key_string = child_key.version.. child_key.depth..  child_key.fingerprint.. child_key.index.. child_key.chain_code.. child_key.key
-    local sha256_hash1 = assert(digest { data = Blob.from_hex(child_key_string), alg = 'SHA256' }).digest:hex()
-    local sha256_hash2 = assert(digest { data =  Blob.from_hex(sha256_hash1), alg = 'SHA256' }).digest:hex()
-    return sha256_hash2
-end
-
 -- derive new child key from parent key
 function derive_new_child(parent_key, child_idx)
     local data = ""
+
     -- if index is greater than equal to first hardend key
-    if tonumber(child_idx) >= FIRST_HARDENED_CHILD then
+    if child_idx >= FIRST_HARDENED_CHILD then
         data = parent_key.key
     else
         -- parent is private
@@ -319,13 +293,17 @@ function derive_new_child(parent_key, child_idx)
     -- concatenate index into data
     local index_hex = num_2_hex(child_idx, 8)
     data = data..index_hex
-    hmac = get_hmac(parent_key.chain_code, data)
+
+    -- import chain-code as hmac key
+    -- sign data as from hmac key
+    local sobject = assert(Sobject.import { name = "hmac", obj_type = "HMAC", value = Blob.from_hex(parent_key.chain_code), transient = true })
+    local mac =  assert(sobject:mac { data = Blob.from_hex(data), alg = 'SHA512'}).digest
+    hmac = mac:hex()
 
     child_key = {
         index = index_hex,
         chain_code = string.sub(hmac, 65, 128),
-        depth = num_2_hex(tonumber(parent_key.depth + 1), 2),
-        is_private = parent_key.is_private,
+        depth = num_2_hex(tonumber(parent_key.depth + 1), 2)
     }
   
     if parent_key.version == PRIVATE_WALLET_VERSION then
@@ -342,18 +320,13 @@ function derive_new_child(parent_key, child_idx)
         child_key.key = add_public_keys(key_bytes, parent_key.key)
     end
     
-   child_key.checksum = string.sub(get_check_sum(child_key), 1, 8)
-  
-    return child_key
-end
+   -- checksum: double sha256 of serialized key
+    local child_key_string = child_key.version.. child_key.depth..  child_key.fingerprint.. child_key.index.. child_key.chain_code.. child_key.key
+    local sha256_hash1 = assert(digest { data = Blob.from_hex(child_key_string), alg = 'SHA256' }).digest:hex()
+    local sha256_hash2 = assert(digest { data =  Blob.from_hex(sha256_hash1), alg = 'SHA256' }).digest:hex()
+    child_key.checksum = string.sub(sha256_hash2, 1, 8)
 
--- serialize child key and encode into base58
-function serialize(child_key)
-    local child_key_string = table.concat({child_key.version, child_key.depth, child_key.fingerprint, child_key.index, 
-        child_key.chain_code, child_key.key, child_key.checksum}
-    )
-    local blob = Blob.from_hex(child_key_string)
-    return  blob:base58()
+    return child_key
 end
 
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
@@ -413,7 +386,6 @@ function sign_utxo(input)
         master_key = child_key
     end
 
-    local child_key_serialized = serialize(child_key)
     local asn1_ec_key = create_ASN1_private_key(string.sub(child_key.key, 3, 66))
     local blob = Blob.from_hex(asn1_ec_key)
     local ec_child_key = import_ec_key(blob)
