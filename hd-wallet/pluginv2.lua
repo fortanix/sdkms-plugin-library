@@ -214,6 +214,7 @@ end
 function extract_coordinates_from_ASN1_public_key(key_byte)
     return string.sub(key_byte, 49, 176)
 end
+
 -- return ec curve co-ordinate from private key
 function get_point_coordinates_from_private_key(key_byte)
     local asn1_ec_key = create_ASN1_private_key(key_byte)
@@ -353,64 +354,6 @@ function serialize(child_key)
     )
     local blob = Blob.from_hex(child_key_string)
     return  blob:base58()
-end
-
------------ @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
------------            ETH            -----------
------------ @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
-function get_rs(signature)
-  local signature_length = tonumber(string.sub(signature, 3, 4), 16) + 2
-
-  local r_length = tonumber(string.sub(signature, 7, 8), 16)
-  local r_left = 9
-  local r_right = r_length*2 + r_left - 1
-  local r = string.sub(signature, r_left, r_right)
-  local s_left = r_right + 5
-  local s_right = signature_length*2
-  local s_length = tonumber(string.sub(signature, s_left-2, s_left-1), 16)
-  local s = string.sub(signature, s_left, s_right)
-
-  -- If s is negative, change it to (-s:mod(N))
-  local sign = tonumber(string.sub(s, 1, 2), 16)
-  if (sign > 127) then
-    s = BigNum.from_bytes_be(~Blob.from_hex(s))
-    s:add(BigNum.from_bytes_be(Blob.from_hex("01")))
-    s:mod(BigNum.from_bytes_be(Blob.from_hex(N)))
-    s = s:hex()
-  end
-
-  return {
-    r = r,
-    s = s
-  }
-end
-
-function set_length_left(msg, len)
-  local msg_len = string.len(msg)
-  if (msg_len > len*2) then
-    -- This one's too big: truncate it
-    return string.sub(msg, msg_len - len*2 + 1)
-  else
-    -- Otherwise: pad it
-    return string.rep("0", len*2 - msg_len)..msg
-  end
-end
-
-function get_eth_v(r,s)
-  local a = BigNum.from_bytes_be(Blob.from_hex(r))
-  local b = BigNum.from_bytes_be(Blob.from_hex("02"))
-  a:mod(b)
-  if a:to_bytes_be()[1] == "" then
-    return "1B"
-  else
-    return "1C"
-  end
-end
-
-function get_eth_signature(signature)
-  local rs = get_rs(signature)
-  local ethereum_signature = set_length_left(rs.r, 32)..set_length_left(rs.s, 32)
-  return ethereum_signature..get_eth_v(rs.r, rs.s)
 end
 
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
