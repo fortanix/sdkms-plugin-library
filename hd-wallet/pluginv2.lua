@@ -16,9 +16,9 @@
 --   - Sign transaction for XRP
 -- ## Setup
 -- - Generate HD-Wallets master key manually
--- **Example Master Key:** `xprv9s21ZrQH143K31xYSDQpPDxsXRTUcvj2iNHm5NUtrGiGG5e2DtALGdso3pGz6ssrdK4PFmM8NSpSBHNqPqm55Qn3LqFtT2emdEXVYsCzC2U` 
+-- **Example Master Key:** `xprv9s21ZrQH143K31xYSDQpPDxsXRTUcvj2iNHm5NUtrGiGG5e2DtALGdso3pGz6ssrdK4PFmM8NSpSBHNqPqm55Qn3LqFtT2emdEXVYsCzC2U`
 -- - Import master key in SDKMS as secret raw key
--- 
+--
 -- ## Input/Output JSON object format
 -- **Input**
 -- ```
@@ -71,7 +71,7 @@
 --    "msgHash": "45a0ee821b05400f513891bbb567a99139f3df72e9e1d4b48186841cc5996d2f"
 -- }
 -- ```
--- ## Example Input JSON object for XPRV 
+-- ## Example Input JSON object for XPRV
 -- ```
 -- {
 --    "import": true,
@@ -84,9 +84,9 @@
 -- - https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
 -- - https://xrpl.org/sign.html
 -- ### Release Notes
---  V 1.0 
+--  V 1.0
 --  - Initial Release
---  V 2.0 
+--  V 2.0
 --  - Added XRP Transaction Signature Support
 --  - Added Private Key flag and checking
 --  - Added Eth, BCH, BTC test cases
@@ -167,7 +167,7 @@ end
 ---------- integer to bytearry impl -----------
 ---------- utils methods ----------------------
 local random = math.random
--- convert number into hex string 
+-- convert number into hex string
 function num_2_hex(num, size)
     local hexstr = '0123456789ABCDEF'
     local s = ""
@@ -209,9 +209,9 @@ function compress_public_key2(x, y)
     else
         return "03"..x
     end
-end     
+end
 
--- return public key from private key 
+-- return public key from private key
 function public_key_for_private_key(key_byte)
     local point = get_point_coordinates_from_private_key(key_byte)
     return compress_public_key(string.sub(point, 1, 64), string.sub(point, 65, 128))
@@ -251,7 +251,7 @@ function add_private_keys(k1, k2)
     local a = BigNum.from_bytes_be(Blob.from_hex(k1))
     local b = BigNum.from_bytes_be(Blob.from_hex(k2))
     a:add(b)
-    a:mod(BigNum.from_bytes_be(Blob.from_hex(N)))   
+    a:mod(BigNum.from_bytes_be(Blob.from_hex(N)))
     hex_key = a:to_bytes_be():hex()
     if (string.len( hex_key ) < 66) then
         local offset = string.rep("0", 32-string.len( hex_key ))
@@ -289,7 +289,7 @@ function derive_new_child(parent_key, child_idx)
            data = parent_key.key
         end
     end
-    
+
     -- concatenate index into data
     local index_hex = num_2_hex(child_idx, 8)
     data = data..index_hex
@@ -305,10 +305,10 @@ function derive_new_child(parent_key, child_idx)
         chain_code = string.sub(hmac, 65, 128),
         depth = num_2_hex(tonumber(parent_key.depth + 1), 2)
     }
-  
+
     if parent_key.version == PRIVATE_WALLET_VERSION then
-        child_key.version = PRIVATE_WALLET_VERSION 
-        fingerprint = hash160(public_key_for_private_key(string.sub(parent_key.key, 3, 66))) 
+        child_key.version = PRIVATE_WALLET_VERSION
+        fingerprint = hash160(public_key_for_private_key(string.sub(parent_key.key, 3, 66)))
         child_key.fingerprint = string.sub(fingerprint, 1, 8)
         -- appending 00 to make key size 33 bit
         child_key.key = "00"..tostring(add_private_keys(string.sub(hmac, 1, 64), parent_key.key))
@@ -319,7 +319,7 @@ function derive_new_child(parent_key, child_idx)
         key_bytes = public_key_for_private_key(string.sub(hmac, 1, 64))
         child_key.key = add_public_keys(key_bytes, parent_key.key)
     end
-    
+
    -- checksum: double sha256 of serialized key
     local child_key_string = child_key.version.. child_key.depth..  child_key.fingerprint.. child_key.index.. child_key.chain_code.. child_key.key
     local sha256_hash1 = assert(digest { data = Blob.from_hex(child_key_string), alg = 'SHA256' }).digest:hex()
