@@ -203,8 +203,8 @@ function get_point_coordinates_from_private_key(key_byte)
 end
 
 -- compress key co-ordinate
-function compress_public_key2(x, y)
-    if y:sub(-1) % "02" == "00" then
+function compress_public_key(x, y)
+    if y:sub(-1) % 2 == 0 then
         return "02"..x
     else
         return "03"..x
