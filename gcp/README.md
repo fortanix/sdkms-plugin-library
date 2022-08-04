@@ -83,7 +83,7 @@ Input JSON
 {
   "operation": "create", 
   "name": "test-key",
-  "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144"
+  "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144",
   "labels": { "source": "fortanix-byok" }
 }
 ```
@@ -212,8 +212,8 @@ Input JSON
 ```
 {
   "operation": "get", 
-  "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144"
-  "name": "test-key",
+  "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144",
+  "name": "test-key"
 }
 ```
 
@@ -326,8 +326,8 @@ Input JSON
 ```
 {
   "operation": "disable", 
-  "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144"
-  "name": "test-key",
+  "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144",
+  "name": "test-key"
 }
 ```
 
@@ -360,8 +360,8 @@ Input JSON
 ```
 {
   "operation": "enable", 
-  "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144"
-  "name": "test-key",
+  "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144",
+  "name": "test-key"
 }
 ```
 
