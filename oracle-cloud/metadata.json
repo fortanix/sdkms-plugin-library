@@ -1,0 +1,14 @@
+{
+  "name": "Oracle Cloud BYOK",
+  "version": 1.0,
+  "short_description": "This plugin implements the Bring your own key (BYOK) model for Oracle Cloud Infrastructure. Using this plugin you can generate and export your key from Fortanix DSM and use BYOK features of Oracle Cloud Infrastructure Key Vaults.",
+  "release_notes": [
+    "List Vaults",
+    "List Keys in a Vault",
+    "Get a key or key version from a Vault",
+    "Enable or Disable a key from a Vault",
+    "Schedule the deletion or Cancel the scheduled deletion of a key or key version from a Vault",
+    "Import a Fortanix DSM Key into a Vault",
+    "Rotate the Fortanix DSM Key and correspondingly perform the same in the Vault"
+  ]
+}
