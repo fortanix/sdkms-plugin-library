@@ -1,26 +1,81 @@
---[[
-plugin input
+-- Name: HD Wallet
+-- Version: 1.1
+-- Description:##
+-- This plugin implements hierarchical deterministic wallets (or "HD Wallets") BIP0032 protocol.
+-- 
+-- ### ## Introduction
+-- The plugin allows to derive child key (xprv, xpub) from a master key in a deterministic way, and/or sign transaction hashes for UTXO and ethereum type crypto coins.
+-- 
+-- ## Use cases
+-- 
+-- The plugin can be used to
+-- 
+-- - Derive child key for UTXO
+-- - Derive child key for ethereum
+-- - Sign transaction for UTXO
+-- - Sign transaction for ethereum
+-- - Import wrapped private key for storage in Smartkey
+--
+-- ## Setup
+-- 
+-- - Generate HD-Wallets master key manually
+-- **Example Master Key:** `xprv9s21ZrQH143K31xYSDQpPDxsXRTUcvj2iNHm5NUtrGiGG5e2DtALGdso3pGz6ssrdK4PFmM8NSpSBHNqPqm55Qn3LqFtT2emdEXVYsCzC2U` 
+-- - Import master key in SDKMS as wrapped secret key using plugin import method
+-- 
+-- ## Input/Output JSON object format for signing
+-- 
+-- ### Input
 -- For UTXO coin (BTC, LTC, BCH, etc.):
-{
-    "masterKeyId": "5aef3e3f-7927-49b2-b252-bf84b6980f95",
-    "coin": "utxo",
-    "path": "m/2",
-    "msgHash": "45a0ee821b05400f513891bbb567a99139f3df72e9e1d4b48186841cc5996d2f"
-}
+--{
+--  "masterKeyId": "5aef3e3f-7927-49b2-b252-bf84b6980f95",
+--  "coin": "utxo",
+--  "path": "m/2",
+--  "msgHash": "45a0ee821b05400f513891bbb567a99139f3df72e9e1d4b48186841cc5996d2f"
+--}
+--
 -- For ETH:
-{
-    "masterKeyId": "5aef3e3f-7927-49b2-b252-bf84b6980f95",
-    "coin": "eth",
-    "msgHash": "45a0ee821b05400f513891bbb567a99139f3df72e9e1d4b48186841cc5996d2f"
-}
+--{
+--  "masterKeyId": "5aef3e3f-7927-49b2-b252-bf84b6980f95",
+--  "coin": "eth",
+--  "msgHash": "45a0ee821b05400f513891bbb567a99139f3df72e9e1d4b48186841cc5996d2f"
+--}
+--
+-- ### Output
+--{
+--  "xpub": "<HD-Wallet-Public-Key>",
+--  "coin_signature": "<Bitcoin-canonicalized-ECDSA-signature>",
+--  "signature": "<ECDSA signature>"
+--}
+--
+-- ## Input/Output JSON object format for import
+--
 -- For XPRV Import:
-{
-    "import": true,
-    "xprvEncId": "5aef3e3f-7927-49b2-b252-bf84b6980f95",
-    "wrapKeyId": "02e5c697-87cd-45b6-8163-957fa5e13370",
-    "name": "Imported Key"
-}
-]]--
+--{
+--  "import": true,
+--  "xprvEncId": "5aef3e3f-7927-49b2-b252-bf84b6980f95",
+--  "wrapKeyId": "02e5c697-87cd-45b6-8163-957fa5e13370",
+--  "name": "Imported Key"
+--}
+--
+-- ## Variable Explanations:
+-- * `master_key_id`: UUID of master key imported in SDKMS
+-- * `path`: Path of key to be derived to sign e.g: m/0, m/1, m/2/10 etc
+-- * `msg_hash`: 32 byte SHA-3 message hash
+-- * `coin`: coin type utxo or eth
+-- * `xprv`: BIP0032 private key
+-- * `xpub`: BIP0032 public key
+-- * `coin_signature`: Bitcoin canonicalized ECDSA signature
+-- * `signature`: ECDSA signature
+--
+-- ## References
+-- 
+-- - https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
+-- - https://en.bitcoin.it/wiki/Bech32
+--
+-- ### Release Notes
+--  - Initial release
+--  - Added input function and support for bech32
+
 
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
 ----------      COMMON UTILITIES     ----------
