@@ -91,19 +91,19 @@ end
 ----------------- Constant --------------------
 local PRIVATE_WALLET_VERSION =  "0488ADE4"
 local PUBLIC_WALLET_VERSION = "0488B21E"
-local FIRST_HARDENED_CHILD = 2147483648
+local FIRST_HARDENED_CHILD = 0x80000000
+local N = BigNum.from_bytes_be(Blob.from_hex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"))
 local PUBLIC_KEY_COMPRESSED_LENGTH = 33
-local N = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"
 
 ------------- BIP32 key structure -------------
 local key = {["version"]="",
-    ["depth"]="",       -- 1 byte
-    ["index"]="",       -- 4 byte child number
-    ["fingerprint"]="", -- 4 byte parent fingerprint
-    ["chain_code"]="",  -- 32 byte
-    ["key"]="",         -- 33 byte long key
-    ["checksum"]="",    -- checksum of all above
-    ["is_private"] = ""} -- 1 bit flag
+    ["depth"]="",       -- 1 byte depth: 0x00 for master nodes, 0x01 for level-1 derived keys, ....
+    ["index"]="",       -- 4 byte child number. This is ser32(i) for i in xi = xpar/i, with xi the key being serialized. (0x00000000 if master key)
+    ["fingerprint"]="", -- 4 byte the fingerprint of the parent's key (0x00000000 if master key)
+    ["chain_code"]="",  -- 32 byte the chain code
+    ["key"]="",         -- 33 byte key data : the public key or private key data (serP(K) for public keys, 0x00 || ser256(k) for private keys)
+    ["checksum"]=""    -- checksum of all above
+}
 
 function createASN1privateKey(keybyte)
   while string.len(keybyte) < 64 do
@@ -128,13 +128,6 @@ function deserialize(exported_master_key_serialized)
     key.fingerprint = string.sub(hex_key, 19, 26)
     key.chain_code = string.sub(hex_key, 27, 90)
     key.key = string.sub(hex_key, 91, 156)
-
-    if key.version == "0488ADE4" then
-        key.is_private = 1
-    else
-        key.is_private = 0
-    end
-
     key.checksum = string.sub(hex_key, 157, 164)
     return key
 end
@@ -359,8 +352,7 @@ function derive_new_child(parent_key, childIdx)
     childKey = {
         index = index_hex,
         chain_code = string.sub(hmac, 65, 128),
-        depth = num2hex(tonumber(parent_key.depth + 1), 2),
-        is_private = parent_key.is_private,
+        depth = num2hex(tonumber(parent_key.depth + 1), 2)
     }
   
     if parent_key.version == PRIVATE_WALLET_VERSION then
