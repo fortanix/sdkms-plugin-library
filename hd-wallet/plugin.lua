@@ -92,17 +92,20 @@ end
 local PRIVATE_WALLET_VERSION =  "0488ADE4"
 local PUBLIC_WALLET_VERSION = "0488B21E"
 local FIRST_HARDENED_CHILD = 0x80000000
+-
+- -- The order of the secp256k1 curve
 local N = BigNum.from_bytes_be(Blob.from_hex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"))
 local PUBLIC_KEY_COMPRESSED_LENGTH = 33
 
 ------------- BIP32 key structure -------------
-local key = {["version"]="",
+local key = {
+    ["version"]="",
     ["depth"]="",       -- 1 byte depth: 0x00 for master nodes, 0x01 for level-1 derived keys, ....
     ["index"]="",       -- 4 byte child number. This is ser32(i) for i in xi = xpar/i, with xi the key being serialized. (0x00000000 if master key)
     ["fingerprint"]="", -- 4 byte the fingerprint of the parent's key (0x00000000 if master key)
     ["chain_code"]="",  -- 32 byte the chain code
     ["key"]="",         -- 33 byte key data : the public key or private key data (serP(K) for public keys, 0x00 || ser256(k) for private keys)
-    ["checksum"]=""    -- checksum of all above
+    ["checksum"]=""     -- checksum of all above
 }
 
 function createASN1privateKey(keybyte)
@@ -112,16 +115,10 @@ function createASN1privateKey(keybyte)
   return "302E0201010420".. keybyte .."A00706052B8104000A"
 end
 
--- return hex of exported key
-function decode_key(exported_master_key_serialized)
-  local blob = Blob.from_base58(exported_master_key_serialized)
-  return blob:hex()
-end
-
 -- deserialize bip32 key
 function deserialize(exported_master_key_serialized)
-    hex_key = decode_key(exported_master_key_serialized)
-
+    local hex_key = Blob.from_base58(exported_master_key_serialized):hex()
+ 
     key.version = string.sub(hex_key, 1, 8)
     key.depth = string.sub(hex_key, 9, 10)
     key.index = string.sub(hex_key, 11, 18)
@@ -129,11 +126,17 @@ function deserialize(exported_master_key_serialized)
     key.chain_code = string.sub(hex_key, 27, 90)
     key.key = string.sub(hex_key, 91, 156)
     key.checksum = string.sub(hex_key, 157, 164)
+    
+
+    if key.version ~= PRIVATE_WALLET_VERSION and key.version ~= PUBLIC_WALLET_VERSION then
+      error("Unexpected key version")
+    end
+
     return key
 end
 
 -- import ec key into sdkms
--- this will hepls to evaluate public key from private key
+-- this will help to evaluate public key from private key
 function import_ec_key(blob)
     local sobject = assert(Sobject.import { name = "ec", obj_type = "EC", elliptic_curve = "SecP256K1", value = blob, transient = true })
     return sobject
@@ -145,8 +148,6 @@ function export_secret_key(keyId)
     return Sobject { kid = keyId }:export().value
 end
 
-
-
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
 ----------           UTXO            ----------
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
@@ -154,24 +155,6 @@ end
 ---------- integer to bytearry impl -----------
 ---------- utils methods ----------------------
 local random = math.random
--- reverse an array element
-function reverse_array(arr)
-    local i, j = 1, #arr
-    while i < j do
-        arr[i], arr[j] = arr[j], arr[i]
-        i = i + 1
-        j = j - 1
-    end
-end
-
-function bytearray(int)
-    local bytes = {}
-    for i = 0, 3 do
-        bytes[i+1] = (int >> (i * 8)) & 0xFF
-    end
-    reverse_array(bytes)
-    return bytes
-end
 
 -- convert number into hex string 
 function num2hex(num, size)
@@ -189,22 +172,41 @@ function num2hex(num, size)
     return s
 end
 
-local function getUUID()
-    local template ='xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
-    return string.gsub(template, '[xy]', function (c)
-        local v = (c == 'x') and random(0, 0xf) or random(8, 0xb)
-        return string.format('%x', v)
-    end)
-end
-
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
 ------------- Parse Derivation Path -----------
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
-function split(str, pat)
+-- compress key co-ordinate
+function compressPublicKey(x, y)
+    local a = BigNum.from_bytes_be(Blob.from_hex(y))
+    local b = BigNum.from_bytes_be(Blob.from_hex("02"))
+    local c = BigNum.from_bytes_be(Blob.from_hex("00"))
+
+    if (a % b):to_bytes_be() == c:to_bytes_be() then
+        return "02"..x
+    else 
+        return "03"..x
+    end 
+end
+
+-- return public key from private key 
+function publicKeyForPrivateKey(keybyte)
+    local asn1_ec_key = createASN1privateKey(keybyte)
+    local blob = Blob.from_hex(asn1_ec_key)
+    local ec_key = import_ec_key(blob)
+    local asn1_publicKey = ec_key.pub_key:hex()
+
+    -- extract co-ordinate from complate ec public key
+    -- first half of last 64 bit is x-cordinate and second half is y-cordinate
+    local point = string.sub(asn1_publicKey, 49, 176)
+    return compressPublicKey(string.sub(point, 1, 64), string.sub(point, 65, 128))
+end
+
+-- parse input path
+function parse_path(child_path)
     local t = {}
-    local fpat = "(.-)" .. pat
+    local fpat = "(.-)" .. "/"
     local last_end = 1
-    local s, e, cap = str:find(fpat, 1)
+    local s, e, cap = child_path:find(fpat, 1)
     while s do
         if s ~= 1 or cap ~= "" then
             table.insert(t,cap)
@@ -217,57 +219,6 @@ function split(str, pat)
         table.insert(t, cap)
     end
     return t
-end
-
--- extract co-ordinate from complate ec public key
--- first half of last 64 bit is x-cordinate and second half is y-cordinate
-function extractCoordinatesFromASN1PublicKey(keybyte)
-    return string.sub(keybyte, 49, 176)
-end
-
--- return ec curve co-ordinate from private key
-function GetPointCoordinatesFromPrivateKey(keybyte)
-    local asn1_ec_key = createASN1privateKey(keybyte)
-    local blob = Blob.from_hex(asn1_ec_key)
-    local ec_key = import_ec_key(blob)
-    local asn1_publicKey = ec_key.pub_key:hex()
-    local coordinate = extractCoordinatesFromASN1PublicKey(asn1_publicKey)
-    return coordinate
-end
-
--- compress key co-ordinate
-local TWO = BigNum.from_bytes_be(Blob.from_hex("02"))
-local ZERO = BigNum.from_bytes_be(Blob.from_hex("00"))
-function is_even(n)
-  if (n % TWO):to_bytes_be() == ZERO:to_bytes_be() then
-    return true
-  else
-    return false
-  end
-end
-
-function compressPublicKey(x, y)
-    local a = BigNum.from_bytes_be(Blob.from_hex(y))
-    local b = BigNum.from_bytes_be(Blob.from_hex("02"))
-    local c = BigNum.from_bytes_be(Blob.from_hex("00"))
-
-    if is_even(a) then
-        return "02"..x
-    else 
-        return "03"..x
-    end 
-end
-
--- return public key from private key 
-function publicKeyForPrivateKey(keybyte)
-    local point = GetPointCoordinatesFromPrivateKey(keybyte)
-    return compressPublicKey(string.sub(point, 1, 64), string.sub(point, 65, 128))
-end
-
--- parse input path
-function parse_path(child_path)
-    local path_table = split(child_path, "/")
-    return path_table
 end
 
 -- import chain-code as hmac key
