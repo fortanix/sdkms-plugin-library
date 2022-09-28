@@ -108,17 +108,17 @@ local key = {
     ["checksum"]=""     -- checksum of all above
 }
 
-function createASN1privateKey(keybyte)
-  while string.len(keybyte) < 64 do
+function create_ASN1_private_key(keybyte)
+    while string.len(keybyte) < 64 do
     keybyte = '00' .. keybyte
-  end
-  return "302E0201010420".. keybyte .."A00706052B8104000A"
+    end
+    return "302E0201010420".. keybyte .."A00706052B8104000A"
 end
 
 -- deserialize bip32 key
 function deserialize(exported_master_key_serialized)
     local hex_key = Blob.from_base58(exported_master_key_serialized):hex()
- 
+
     key.version = string.sub(hex_key, 1, 8)
     key.depth = string.sub(hex_key, 9, 10)
     key.index = string.sub(hex_key, 11, 18)
@@ -126,10 +126,10 @@ function deserialize(exported_master_key_serialized)
     key.chain_code = string.sub(hex_key, 27, 90)
     key.key = string.sub(hex_key, 91, 156)
     key.checksum = string.sub(hex_key, 157, 164)
-    
+
 
     if key.version ~= PRIVATE_WALLET_VERSION and key.version ~= PUBLIC_WALLET_VERSION then
-      error("Unexpected key version")
+        error("Unexpected key version")
     end
 
     return key
@@ -157,7 +157,7 @@ end
 local random = math.random
 
 -- convert number into hex string 
-function num2hex(num, size)
+function num_2_hex(num, size)
     local hexstr = '0123456789ABCDEF'
     local s = ""
     while num > 0 do
@@ -176,7 +176,7 @@ end
 ------------- Parse Derivation Path -----------
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
 -- compress key co-ordinate
-function compressPublicKey(x, y)
+function compress_public_key(x, y)
     local a = BigNum.from_bytes_be(Blob.from_hex(y))
     local b = BigNum.from_bytes_be(Blob.from_hex("02"))
     local c = BigNum.from_bytes_be(Blob.from_hex("00"))
@@ -189,20 +189,20 @@ function compressPublicKey(x, y)
 end
 
 -- return public key from private key 
-function publicKeyForPrivateKey(keybyte)
-    local asn1_ec_key = createASN1privateKey(keybyte)
+function public_key_for_private_key(keybyte)
+    local asn1_ec_key = create_ASN1_private_key(keybyte)
     local blob = Blob.from_hex(asn1_ec_key)
     local ec_key = import_ec_key(blob)
-    local asn1_publicKey = ec_key.pub_key:hex()
+    local asn1_public_key = ec_key.pub_key:hex()
 
     -- extract co-ordinate from complate ec public key
     -- first half of last 64 bit is x-cordinate and second half is y-cordinate
-    local point = string.sub(asn1_publicKey, 49, 176)
-    return compressPublicKey(string.sub(point, 1, 64), string.sub(point, 65, 128))
+    local point = string.sub(asn1_public_key, 49, 176)
+    return compress_public_key(string.sub(point, 1, 64), string.sub(point, 65, 128))
 end
 
 -- return ripmd160 digest
-function hash160(data)
+function hash_160(data)
     local sha256_hash = assert(digest { data = Blob.from_hex(data), alg = 'SHA256' }).digest:hex()
     local ripmd160_hash = assert(digest { data = Blob.from_hex(sha256_hash), alg = 'RIPEMD160' }).digest
     return ripmd160_hash:hex()
@@ -218,7 +218,7 @@ function derive_new_child(parent_key, childIdx)
         -- parent is private
         -- data equal to public key of parent private
         if parent_key.version == PRIVATE_WALLET_VERSION then
-            data = publicKeyForPrivateKey(string.sub(parent_key.key, 3, 66))
+            data = public_key_for_private_key(string.sub(parent_key.key, 3, 66))
         else
             -- key is public
             -- data equal to parent key
@@ -227,7 +227,7 @@ function derive_new_child(parent_key, childIdx)
     end
     
     -- concatenate index into data
-    local index_hex = num2hex(childIdx, 8)
+    local index_hex = num_2_hex(childIdx, 8)
     data = data..index_hex
 
     -- import chain-code as hmac key
@@ -236,15 +236,15 @@ function derive_new_child(parent_key, childIdx)
     local mac =  assert(sobject:mac { data = Blob.from_hex(data), alg = 'SHA512'}).digest
     local hmac = mac:hex()
 
-    childKey = {
+    child_key = {
         index = index_hex,
         chain_code = string.sub(hmac, 65, 128),
-        depth = num2hex(tonumber(parent_key.depth + 1), 2)
+        depth = num_2_hex(tonumber(parent_key.depth + 1), 2)
     }
     if parent_key.version == PRIVATE_WALLET_VERSION then
-        childKey.version = PRIVATE_WALLET_VERSION 
-        fingerprint = hash160(publicKeyForPrivateKey(string.sub(parent_key.key, 3, 66))) 
-        childKey.fingerprint = string.sub(fingerprint, 1, 8)
+        child_key.version = PRIVATE_WALLET_VERSION 
+        fingerprint = hash_160(public_key_for_private_key(string.sub(parent_key.key, 3, 66))) 
+        child_key.fingerprint = string.sub(fingerprint, 1, 8)
 
         -- appending 00 to make key size 33 bit
         local a = BigNum.from_bytes_be(Blob.from_hex(string.sub(hmac, 1, 64)))
@@ -258,12 +258,12 @@ function derive_new_child(parent_key, childIdx)
             hex_key = offset..hex_key
         end
 
-        childKey.key = "00"..tostring(hex_key)
+        child_key.key = "00"..tostring(hex_key)
     else
-        childKey.version = PUBLIC_WALLET_VERSION
-        fingerprint = hash160(parent_key.key)
-        childKey.fingerprint = string.sub(fingerprint, 1, 8)
-        keyBytes = publicKeyForPrivateKey(string.sub(hmac, 1, 64))
+        child_key.version = PUBLIC_WALLET_VERSION
+        fingerprint = hash_160(parent_key.key)
+        child_key.fingerprint = string.sub(fingerprint, 1, 8)
+        keyBytes = public_key_for_private_key(string.sub(hmac, 1, 64))
 
         local secP256K1 = EcGroup.from_name('SecP256K1')
         local comp_key_1 = Blob.from_hex(keyBytes)
@@ -278,15 +278,15 @@ function derive_new_child(parent_key, childIdx)
         local p2 = secP256K1:point_from_components(x2, y2)
         local p3 = p1 + p2
         
-        childKey.key = compressPublicKey(p3:x():to_bytes_be():hex(), p3:y():to_bytes_be():hex())
+        child_key.key = compress_public_key(p3:x():to_bytes_be():hex(), p3:y():to_bytes_be():hex())
     end
     
     -- checksum: double sha256 of serialized key
-    local chlid_key_string = childKey.version.. childKey.depth..  childKey.fingerprint.. childKey.index.. childKey.chain_code.. childKey.key
+    local chlid_key_string = child_key.version.. child_key.depth..  child_key.fingerprint.. child_key.index.. child_key.chain_code.. child_key.key
     local sha256_hash1 = assert(digest { data = Blob.from_hex(chlid_key_string), alg = 'SHA256' }).digest:hex()
-    childKey.checksum = assert(digest { data =  Blob.from_hex(sha256_hash1), alg = 'SHA256' }).digest:hex()
+    child_key.checksum = assert(digest { data =  Blob.from_hex(sha256_hash1), alg = 'SHA256' }).digest:hex()
       
-    return childKey
+    return child_key
 end
 
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
@@ -299,7 +299,7 @@ function run_eth(input)
     local private_key = string.sub(master_key.key, 3, 66)
 
     -- import private key as asn1 ec key
-    local asn1_ec_key = createASN1privateKey(private_key)
+    local asn1_ec_key = create_ASN1_private_key(private_key)
     local blob = Blob.from_hex(asn1_ec_key)
     local ec_child_key = import_ec_key(blob)
 
@@ -321,7 +321,7 @@ function run_xrp(input)
     local private_key = string.sub(master_key.key, 3, 66)
 
     -- import private key as asn1 ec key
-    local asn1_ec_key = createASN1privateKey(private_key)
+    local asn1_ec_key = create_ASN1_private_key(private_key)
     local blob = Blob.from_hex(asn1_ec_key)
     local ec_child_key = import_ec_key(blob)
 
@@ -373,7 +373,7 @@ function run_utxo(input)
     local child_key_serialized = blob:base58()
    
     local child_key_serialized = serialize(child_key)
-    local asn1_ec_key = createASN1privateKey(string.sub(child_key.key, 3, 66))
+    local asn1_ec_key = create_ASN1_private_key(string.sub(child_key.key, 3, 66))
     local blob = Blob.from_hex(asn1_ec_key)
     local ec_child_key = import_ec_key(blob)
     local sign_input = { hash = Blob.from_hex(input.msgHash), hash_alg = "SHA256", deterministic_signature = true }
