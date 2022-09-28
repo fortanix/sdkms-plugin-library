@@ -201,80 +201,11 @@ function publicKeyForPrivateKey(keybyte)
     return compressPublicKey(string.sub(point, 1, 64), string.sub(point, 65, 128))
 end
 
--- parse input path
-function parse_path(child_path)
-    local t = {}
-    local fpat = "(.-)" .. "/"
-    local last_end = 1
-    local s, e, cap = child_path:find(fpat, 1)
-    while s do
-        if s ~= 1 or cap ~= "" then
-            table.insert(t,cap)
-        end
-        last_end = e+1
-        s, e, cap = str:find(fpat, last_end)
-    end
-    if last_end <= #str then
-        cap = str:sub(last_end)
-        table.insert(t, cap)
-    end
-    return t
-end
-
--- import chain-code as hmac key
--- sign data as from hmac key
-function get_hmac(hmac_key, data)
-    local sobject = assert(Sobject.import { name = "hmac", obj_type = "HMAC", value = Blob.from_hex(hmac_key), transient = true })
-    local mac =  assert(sobject:mac { data = Blob.from_hex(data), alg = 'SHA512'}).digest
-    return mac:hex()
-end
-
 -- return ripmd160 digest
 function hash160(data)
     local sha256_hash = assert(digest { data = Blob.from_hex(data), alg = 'SHA256' }).digest:hex()
     local ripmd160_hash = assert(digest { data = Blob.from_hex(sha256_hash), alg = 'RIPEMD160' }).digest
     return ripmd160_hash:hex()
-end
-
--- add private keys
-function addPrivateKeys(k1, k2)
-    local a = BigNum.from_bytes_be(Blob.from_hex(k1))
-    local b = BigNum.from_bytes_be(Blob.from_hex(k2))
-    a:add(b)
-    a:mod(BigNum.from_bytes_be(Blob.from_hex(N)))   
-    hex_key = a:to_bytes_be():hex()
-    if (string.len( hex_key ) < 66) then
-        local offset = string.rep("0", 32-string.len( hex_key ))
-        hex_key = offset..hex_key
-    end
-    return hex_key
-end
-
--- return scalar addition of point
-function addPublicKeys(k1, k2)
-    --[[ local x1 =  BigNum.from_bytes_be(Blob.from_hex(string.sub(k1, 1, 64)))
-    local y1 =  BigNum.from_bytes_be(Blob.from_hex(string.sub(k1, 65, 128))) ]]--
-    local secP256K1 =EcGroup.from_name('SecP256K1')
-    local comp_key_1 = Blob.from_hex(k1)
-   local pt_1 = secP256K1:point_from_binary(comp_key_1)
-    local x1 = pt_1:x()
-    local y1 = pt_1:y()
-   local comp_key_2 = Blob.from_hex(k2)
-   local pt = secP256K1:point_from_binary(comp_key_2)
-    local x2 = pt:x()
-    local y2 = pt:y()
-   local p1 = secP256K1:point_from_components(x1, y1)
-    local p2 = secP256K1:point_from_components(x2, y2)
-    local p3 = p1 + p2
-    return compressPublicKey(p3:x():to_bytes_be():hex(), p3:y():to_bytes_be():hex())
-end
-
--- checksum: double sha256 of serialized key
-function getCheckSum(child_key)
-    local chlid_key_string = child_key.version.. child_key.depth..  child_key.fingerprint.. child_key.index.. child_key.chain_code.. child_key.key
-    local sha256_hash1 = assert(digest { data = Blob.from_hex(chlid_key_string), alg = 'SHA256' }).digest:hex()
-    local sha256_hash2 = assert(digest { data =  Blob.from_hex(sha256_hash1), alg = 'SHA256' }).digest:hex()
-    return sha256_hash2
 end
 
 -- derive new child key from parent key
@@ -298,99 +229,64 @@ function derive_new_child(parent_key, childIdx)
     -- concatenate index into data
     local index_hex = num2hex(childIdx, 8)
     data = data..index_hex
-    hmac = get_hmac(parent_key.chain_code, data)
+
+    -- import chain-code as hmac key
+    -- sign data as from hmac key
+    local sobject = assert(Sobject.import { name = "hmac", obj_type = "HMAC", value = Blob.from_hex(parent_key.chain_code), transient = true })
+    local mac =  assert(sobject:mac { data = Blob.from_hex(data), alg = 'SHA512'}).digest
+    local hmac = mac:hex()
 
     childKey = {
         index = index_hex,
         chain_code = string.sub(hmac, 65, 128),
         depth = num2hex(tonumber(parent_key.depth + 1), 2)
     }
-  
     if parent_key.version == PRIVATE_WALLET_VERSION then
         childKey.version = PRIVATE_WALLET_VERSION 
         fingerprint = hash160(publicKeyForPrivateKey(string.sub(parent_key.key, 3, 66))) 
         childKey.fingerprint = string.sub(fingerprint, 1, 8)
+
         -- appending 00 to make key size 33 bit
-        childKey.key = "00"..tostring(addPrivateKeys(string.sub(hmac, 1, 64), parent_key.key))
+        local a = BigNum.from_bytes_be(Blob.from_hex(string.sub(hmac, 1, 64)))
+        local b = BigNum.from_bytes_be(Blob.from_hex(parent_key.key))
+        a:add(b)
+        a:mod(BigNum.from_bytes_be(Blob.from_hex(N)))   
+        hex_key = a:to_bytes_be():hex()
+
+        if (string.len( hex_key ) < 66) then
+            local offset = string.rep("0", 32-string.len( hex_key ))
+            hex_key = offset..hex_key
+        end
+
+        childKey.key = "00"..tostring(hex_key)
     else
         childKey.version = PUBLIC_WALLET_VERSION
         fingerprint = hash160(parent_key.key)
         childKey.fingerprint = string.sub(fingerprint, 1, 8)
         keyBytes = publicKeyForPrivateKey(string.sub(hmac, 1, 64))
-        childKey.key = addPublicKeys(keyBytes, parent_key.key)
+
+        local secP256K1 = EcGroup.from_name('SecP256K1')
+        local comp_key_1 = Blob.from_hex(keyBytes)
+        local pt_1 = secP256K1:point_from_binary(comp_key_1)
+        local x1 = pt_1:x()
+        local y1 = pt_1:y()
+        local comp_key_2 = Blob.from_hex(parent_key.key)
+        local pt = secP256K1:point_from_binary(comp_key_2)
+        local x2 = pt:x()
+        local y2 = pt:y()
+        local p1 = secP256K1:point_from_components(x1, y1)
+        local p2 = secP256K1:point_from_components(x2, y2)
+        local p3 = p1 + p2
+        
+        childKey.key = compressPublicKey(p3:x():to_bytes_be():hex(), p3:y():to_bytes_be():hex())
     end
     
-   childKey.checksum = string.sub(getCheckSum(childKey), 1, 8)
-  
+    -- checksum: double sha256 of serialized key
+    local chlid_key_string = childKey.version.. childKey.depth..  childKey.fingerprint.. childKey.index.. childKey.chain_code.. childKey.key
+    local sha256_hash1 = assert(digest { data = Blob.from_hex(chlid_key_string), alg = 'SHA256' }).digest:hex()
+    childKey.checksum = assert(digest { data =  Blob.from_hex(sha256_hash1), alg = 'SHA256' }).digest:hex()
+      
     return childKey
-end
-
--- serialize child key and encode into base58
-function serialize(child_key)
-    local chlid_key_string = table.concat({child_key.version, child_key.depth, child_key.fingerprint, child_key.index, 
-        child_key.chain_code, child_key.key, child_key.checksum}
-    )
-    local blob = Blob.from_hex(chlid_key_string)
-    return  blob:base58()
-end
-
------------ @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
------------            ETH            -----------
------------ @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
-
-function get_rs(signature)
-  local signature_length = tonumber(string.sub(signature, 3, 4), 16) + 2
-
-  local r_length = tonumber(string.sub(signature, 7, 8), 16)
-  local r_left = 9
-  local r_right = r_length*2 + r_left - 1
-  local r = string.sub(signature, r_left, r_right)
-  local s_left = r_right + 5
-  local s_right = signature_length*2
-  local s_length = tonumber(string.sub(signature, s_left-2, s_left-1), 16)
-  local s = string.sub(signature, s_left, s_right)
-
-  -- If s is negative, change it to (-s:mod(N))
-  local sign = tonumber(string.sub(s, 1, 2), 16)
-  if (sign > 127) then
-    s = BigNum.from_bytes_be(~Blob.from_hex(s))
-    s:add(BigNum.from_bytes_be(Blob.from_hex("01")))
-    s:mod(BigNum.from_bytes_be(Blob.from_hex(N)))
-    s = s:hex()
-  end
-
-  return {
-    r = r,
-    s = s
-  }
-end
-
-function set_length_left(msg, len)
-  local msg_len = string.len(msg)
-  if (msg_len > len*2) then
-    -- This one's too big: truncate it
-    return string.sub(msg, msg_len - len*2 + 1)
-  else
-    -- Otherwise: pad it
-    return string.rep("0", len*2 - msg_len)..msg
-  end
-end
-
-function get_eth_v(r,s)
-  local a = BigNum.from_bytes_be(Blob.from_hex(r))
-  local b = BigNum.from_bytes_be(Blob.from_hex("02"))
-  a:mod(b)
-  if a:to_bytes_be()[1] == "" then
-    return "1B"
-  else
-    return "1C"
-  end
-end
-
-function get_EthSignature(signature)
-  local rs = get_rs(signature)
-  local ethereum_signature = set_length_left(rs.r, 32)..set_length_left(rs.s, 32)
-  return ethereum_signature..get_eth_v(rs.r, rs.s)
 end
 
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
@@ -408,13 +304,10 @@ function run_eth(input)
     local ec_child_key = import_ec_key(blob)
 
     local signature = assert(ec_child_key:sign { hash = Blob.from_hex(input.msgHash), hash_alg = "SHA256", deterministic_signature = true }).signature
-    local EthSignature = get_EthSignature(signature:hex())
 
     return {
       coin = input.coin,
       signature = signature:hex():lower()
-      --rs = get_rs(signature:hex()),
-      --eth_signature = EthSignature:lower()
     }
 end
 
@@ -448,13 +341,37 @@ end
 function run_utxo(input)
     local exported_master_key_serialized = export_secret_key(input.masterKeyId)
     local master_key = deserialize(exported_master_key_serialized:bytes())
-    local indices = parse_path(input.path)
+
+    local indices = {}
+    local fpat = "(.-)" .. "/"
+    local last_end = 1
+    local s, e, cap = input.path:find(fpat, 1)
+
+    while s do
+        if s ~= 1 or cap ~= "" then
+            table.insert(indices, cap)
+        end
+        last_end = e+1
+        s, e, cap = str:find(fpat, last_end)
+    end
+    if last_end <= #str then
+        cap = str:sub(last_end)
+        table.insert(indices, cap)
+    end
 
     for i = 2, #indices do
         child_key = derive_new_child(master_key, tonumber(indices[i]))
         master_key = child_key
     end
 
+    -- serialize child key and encode into base58
+    local chlid_key_string = table.concat({child_key.version, child_key.depth, child_key.fingerprint, child_key.index, 
+        child_key.chain_code, child_key.key, child_key.checksum}
+    )
+    local blob = Blob.from_hex(chlid_key_string)
+    
+    local child_key_serialized = blob:base58()
+   
     local child_key_serialized = serialize(child_key)
     local asn1_ec_key = createASN1privateKey(string.sub(child_key.key, 3, 66))
     local blob = Blob.from_hex(asn1_ec_key)
