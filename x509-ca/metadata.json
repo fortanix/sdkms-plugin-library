@@ -1,0 +1,8 @@
+{
+  "name": "X.509 CA",
+  "version": 1.1,
+  "short_description": "Issue X.509 certificates for keys stored in SDKMS.",
+  "release_notes": [
+    "Allow specifying multiple entries in subject DN in the form of a list"
+  ]
+}
