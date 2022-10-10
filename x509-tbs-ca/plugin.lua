@@ -1,49 +1,3 @@
--- Name: X.509 TBS CA
--- Version: 2.0
--- Description:## Short Description
--- Creates a signed X.509 Certificate structure for keys managed by SDKMS. It showcases the flexibility of the plugin framework to use user-specific data formats.
---
--- ### ## Introduction 
--- X.509 certificates are a key element of many security architectures. It cryptographically ties a public key to the issuer of the certificate. Companies may wish to use their own input format.
--- This example plugin shows the flexibility of Fortanix's plugin framework. In this case a basic JSON structure is accepted as input. After the input passes a user-specified verification function, any desired fields can be added and a valid X509 certificate is created. The signed certificate is returned  in PEM format.
--- 
--- ## Use Cases
--- 
--- X.509 certificates are used in a wide variety of applications:
--- 
---  - Webservers use X.509 certificates as part of TLS to authenticate their identity
---  - IPsec uses it to authenticate peers
---  - Code signing systems such as Microsoft Authenticate enable verification of vendors of computer programs
--- 
--- ## Input/Output JSON Object Format
--- 
--- The input is a JSON map with the following fields:
--- 
--- * `subject_key`: the name of the key that will be included in the certificate
--- * `issuer_cert`: the name of the issuer cert stored in SDKMS
--- * `issuer_key`: the name of the issuer key stored in SDKMS
--- * `cert_lifetime`: the lifetime of the certificate in seconds
--- * `subject_dn`: a map of OIDs to values
--- 
--- ## Example Usages
--- 
--- ```
--- {
---   "issuer_cert": "my CA cert",
---   "issuer_key": "my CA key",
---   "subject_key": "my server key",
---   "cert_lifetime": 86400,
---   "subject_dn": { "CN": "localhost", "OU": "Testing" }
--- }
--- ```
--- 
--- ## References
--- 
---  - https://www.rfc-editor.org/rfc/rfc5280.txt
--- 
--- ### Release Notes 
---  - Fixed number of arguments passed to sign()
-
 function check(input)
    if type(input) ~= 'table' then
       return nil, 'invalid input'
@@ -87,7 +41,20 @@ function load_dn(dn)
 
    for k,v in pairs(dn)
    do
-      name:set(Oid.from_str(k), v, 'utf8')
+      -- if there are multiple attributes in a Name,
+      -- they will get overwritten in case of a dictionary.
+      -- So, to allow specifying multiple attrs, we allow
+      -- specifying a list of values instead of a single value.
+      -- like "OU": ["OU1", "OU2"].
+      if type(v) == 'table'
+      then
+         for _, v in ipairs(v)
+         do
+            name:set(Oid.from_str(k), v, 'utf8')
+         end
+      else
+         name:set(Oid.from_str(k), v, 'utf8')
+      end
    end
 
    return name
@@ -116,4 +83,3 @@ function run(input)
    local new_cert = tbs:sign(issuer_cert, input.issuer_key, serial_number_bits, "SHA256")
    return format_pem(new_cert:export().value:base64(), "CERTIFICATE")
 end
-

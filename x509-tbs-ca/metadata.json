@@ -1,0 +1,8 @@
+{
+  "name": "X.509 TBS CA",
+  "version": 2.1,
+  "short_description": "Creates a signed X.509 Certificate structure for keys managed by SDKMS. It showcases the flexibility of the plugin framework to use user-specific data formats.",
+  "release_notes": [
+    "Allow specifying multiple entries in subject DN in the form of a list"
+  ]
+}
