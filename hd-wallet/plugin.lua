@@ -4,7 +4,11 @@
 -- This plugin implements hierarchical deterministic wallets (or "HD Wallets") BIP0032 protocol.
 --
 -- ## Introduction
--- The plugin derives a child key (xprv, xpub) in a in a given path from a master key, and signs a transaction hash.
+-- The plugin derives a child key (xprv, xpub) in a in a given path from a
+-- master key, and signs a transaction hash. The child key is transient; it
+-- only exists during the plugin execution. This version of the plugin requires
+-- the master key to be exportable. In upcoming version 2.0, this condition is
+-- removed for better security.
 --
 -- ## Use cases
 --
@@ -59,12 +63,14 @@
 --  - Initial release
 
 ----------------- Constant --------------------
-local PRIVATE_WALLET_VERSION =  "0488ADE4"
-local PUBLIC_WALLET_VERSION = "0488B21E"
-local FIRST_HARDENED_CHILD = 0x80000000
+local PRIVATE_WALLET_VERSION = "0488ADE4"
+local PUBLIC_WALLET_VERSION  = "0488B21E"
+local FIRST_HARDENED_CHILD   = 0x80000000
 
- -- The order of the secp256k1 curve
-local N = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"
+ -- The order of the secp256k1 curve. It is < 2^256, e.g. every integer modulo
+ -- the order fits in 32 bytes.
+local ORDER_SECP256K1     = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"
+local ORDER_SECP256K1_LEN = 32
 
 
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
@@ -82,7 +88,7 @@ local function num_2_hex(num, size)
     end
     if (string.len(s) < size) then
         local offset = string.rep("0", size-string.len(s))
-        s = offset..s
+        s = offset .. s
     end
     return s
 end
@@ -118,7 +124,7 @@ local function import_ec_key(blob)
     blob = '00' .. blob
   end
 
-  local asn1 = Blob.from_hex("302E0201010420".. blob .."A00706052B8104000A")
+  local asn1 = Blob.from_hex("302E0201010420" .. blob .. "A00706052B8104000A")
 
   -- Import into DSM as transient key
   return assert(Sobject.import {
@@ -163,14 +169,14 @@ local function compress_public_key(x, y)
   local c = BigNum.from_bytes_be(Blob.from_hex("00"))
 
   if (a % b):to_bytes_be() == c:to_bytes_be() then
-    return "02"..x
+    return "02" .. x
   else
-    return "03"..x
+    return "03" .. x
   end
 end
 
 -- return public key from private key
-local function public_key_for_private_key(private_key_bytes)
+local function public_from_private(private_key_bytes)
   local sobject = import_ec_key(private_key_bytes)
   local asn1_public_key = sobject.pub_key:hex()
 
@@ -196,26 +202,22 @@ end
 
 -- derive new child key from parent key
 local function derive_new_child(parent_key, child_index)
-  local data
+  local derived_bytes
 
-  -- if index is greater than equal to first hardened key
   if tonumber(child_index) >= FIRST_HARDENED_CHILD then
-    data = parent_key.key_bytes
+    derived_bytes = parent_key.key_bytes
+  elseif parent_key.version == PRIVATE_WALLET_VERSION then
+    -- parent is private, we take the public key of the parent
+    derived_bytes = public_from_private(string.sub(parent_key.key_bytes, 3, 66))
+  elseif parent_key.version == PUBLIC_WALLET_VERSION then
+    -- parent is public already
+    derived_bytes = parent_key.key_bytes
   else
-  -- parent is private
-  -- data equal to public key of parent private
-  if parent_key.version == PRIVATE_WALLET_VERSION then
-    data = public_key_for_private_key(string.sub(parent_key.key_bytes, 3, 66))
-  else
-    -- key is public
-    -- data equal to parent key
-    data = parent_key.key_bytes
-    end
+    error("unkown version encountered when deriving")
   end
 
-  -- concatenate index into data
   local index_hex = num_2_hex(child_index, 8)
-  data = data..index_hex
+  derived_bytes = derived_bytes .. index_hex
 
   -- import chain-code as hmac key
   local sobject = assert(Sobject.import {
@@ -224,7 +226,7 @@ local function derive_new_child(parent_key, child_index)
     transient = true
   }, "cannot import HMAC Sobject")
   local hmac =  assert(sobject:mac {
-    data = Blob.from_hex(data),
+    data = Blob.from_hex(derived_bytes),
     alg  = 'SHA512'
   }).digest:hex()
   local child_key = {
@@ -235,26 +237,26 @@ local function derive_new_child(parent_key, child_index)
 
   if parent_key.version == PRIVATE_WALLET_VERSION then
     child_key.version = PRIVATE_WALLET_VERSION
-    local pub_key = public_key_for_private_key(string.sub(parent_key.key_bytes, 3, 66))
+    local pub_key = public_from_private(string.sub(parent_key.key_bytes, 3, 66))
     child_key.parent_fgpt = string.sub(hash_160(pub_key), 1, 8)
 
     -- append 00 to make key size 33 bytes
     local a = BigNum.from_bytes_be(Blob.from_hex(string.sub(hmac, 1, 64)))
     local b = BigNum.from_bytes_be(Blob.from_hex(parent_key.key_bytes))
     a:add(b)
-    a:mod(BigNum.from_bytes_be(Blob.from_hex(N)))
+    a:mod(BigNum.from_bytes_be(Blob.from_hex(ORDER_SECP256K1)))
     local hex_key = a:to_bytes_be():hex()
 
     if (string.len( hex_key ) < 66) then
       local offset = string.rep("0", 32-string.len( hex_key ))
-      hex_key = offset..hex_key
+      hex_key = offset .. hex_key
     end
 
-    child_key.key_bytes = "00"..tostring(hex_key)
+    child_key.key_bytes = "00" .. tostring(hex_key)
   else
     child_key.version = PUBLIC_WALLET_VERSION
     child_key.parent_fgpt = string.sub(hash_160(parent_key.key_bytes), 1, 8)
-    local key_bytes = public_key_for_private_key(string.sub(hmac, 1, 64))
+    local key_bytes = public_from_private(string.sub(hmac, 1, 64))
 
     local secP256K1 = EcGroup.from_name('SecP256K1')
     local comp_key_1 = Blob.from_hex(key_bytes)
@@ -298,39 +300,6 @@ end
 -----------            ETH            -----------
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
 
-local function format_rs(signature)
-  local signature_length = tonumber(string.sub(signature, 3, 4), 16) + 2
-  local r_length = tonumber(string.sub(signature, 7, 8), 16)
-  local r_left = 9
-  local r_right = r_length*2 + r_left - 1
-  local r = BigNum.from_bytes_be(Blob.from_hex(string.sub(signature, r_left, r_right)))
-
-  local s_left = r_right + 5
-  local s_right = signature_length * 2
-  local s = BigNum.from_bytes_be(Blob.from_hex(string.sub(signature, s_left, s_right)))
-
-  local N_minus_s = BigNum.from_bytes_be(Blob.from_hex(N)) - s
-
-  if s > N_minus_s then
-    s = N_minus_s
-  end
-
-  return {
-    r = r,
-    s = s
-  }
-end
-
-local function get_eth_v(r)
-   local a = r:copy()
-   a:mod(BigNum.from_int(2))
-   if a == BigNum.from_int(0) then
-      return "1B"
-   else
-      return "1C"
-   end
-end
-
 local function sign_eth(master_key, msg_hash)
   local private_key = string.sub(master_key.key_bytes, 3, 66)
   local signing_key = import_ec_key(private_key)
@@ -339,17 +308,58 @@ local function sign_eth(master_key, msg_hash)
     hash                    = Blob.from_hex(msg_hash),
     hash_alg                = "SHA256",
     deterministic_signature = true
-  }, "cannot sign").signature:hex()
+  }, "cannot sign").signature
 
-  local rs = format_rs(sig)
-  local v = get_eth_v(rs.r)
-  local r_padded = rs.r:to_bytes_be_zero_pad(32):hex()
-  local s_padded = rs.s:to_bytes_be_zero_pad(32):hex()
-  local coin_signature = r_padded .. s_padded .. v
+  -- Parse r, s from DER signature. It is a SEQUENCE of two elements of
+  -- length R_LENGTH. Normally, they both fit in 32 bytes but SEC1 does not
+  -- prevent serializing them with more bytes and padding with 0x00 so we check
+  -- the structure for sanity.
+  assert(sig:slice(1, 1) == Blob.from_hex("30"), "bad signature") -- SEQUENCE
+  local sig_len = tonumber(sig:slice(2, 2):hex(), 16)
+  assert(#sig == sig_len + 2, "bad signature length")
+  assert(
+    sig:slice(3, 3) == Blob.from_hex("02"), "bad signature"
+  ) -- INTEGER
+  local r_len = tonumber(sig:slice(4, 4):hex(), 16)
+  local r_left = 2 + 2
+  local r_right = r_left + r_len
+  local s_left = r_right + 2
+  assert(
+    sig:slice(r_right + 1, r_right + 1) == Blob.from_hex("02"), "bad signature"
+  ) -- INTEGER
+  local s_len = tonumber(sig:slice(r_right + 2, r_right + 2):hex(), 16)
+  assert(#sig == 2 + 2 + r_len + 2 + s_len)
+  local s_right = s_left + s_len
+
+  -- The structure is correct. Get the integers.
+  local r = BigNum.from_bytes_be(sig:slice(r_left, r_right))
+  local s = BigNum.from_bytes_be(sig:slice(s_left, s_right))
+
+  -- Maybe flip 's', see TODO: reference
+  local N = BigNum.from_bytes_be(Blob.from_hex(ORDER_SECP256K1))
+
+  if s > N - s then
+    s = N - s
+  end
+  local r_bytes_padded = r:to_bytes_be_zero_pad(ORDER_SECP256K1_LEN)
+  local s_bytes_padded = s:to_bytes_be_zero_pad(ORDER_SECP256K1_LEN)
+
+  -- Get Ethereum 'v' value
+  -- Recall that 'r' is the abscissa of a point in the elliptic curve,
+  -- therefore, an element of Fp. The probability of r mod order being
+  -- different than r is overwhelmingly low, so we assume that and only set `v`
+  -- according to the parity.
+  -- See e.g. https://bitcoin.stackexchange.com/questions/38351
+  local one = Blob.from_hex("01")
+  local v = Blob.from_hex("1B")
+  if r_bytes_padded:slice(#r_bytes_padded, #r_bytes_padded) & one == one then
+    v = Blob.from_hex("1C")
+  end
+
 
   return {
-    signature = sig,
-    coin_signature = coin_signature
+    signature      = sig:hex(),
+    coin_signature = (r_bytes_padded .. s_bytes_padded .. v):hex()
   }
 end
 
@@ -376,10 +386,10 @@ local function sign_utxo(master_key, path, msg_hash)
     hash                    = Blob.from_hex(msg_hash),
     hash_alg                = "SHA256",
     deterministic_signature = true
-  })).signature:hex()
+  })).signature
 
   return {
-    signature = sig
+    signature = sig:hex()
   }
 end
 
@@ -387,20 +397,33 @@ end
 ----------- Main method for Plugin    -----------
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
 function run(input)
-  -- TODO: Sanitize input
-  local master_sobject = assert(Sobject { kid = input.master_key_id })
-  local raw_master_key = assert(master_sobject:export().value, "cannot export master key")
-
-  local master_key = deserialize_bip32(raw_master_key)
-
-  local sig
-  if input.coin == "eth" then
-    sig = sign_eth(master_key, input.msg_hash)
-  elseif input.coin == "utxo" then
-    sig = sign_utxo(master_key, input.path, input.msg_hash)
-  else
-    return { error = "unsupported coin" }
+  local required_fields = { "master_key_id", "msg_hash" }
+  for _, field in pairs(required_fields) do
+    if not input[field] then
+      error("missing argument " .. field)
+    end
   end
-  sig.coin = input.coin
-  return sig
+
+  -- This is a critical security operation. On version 2.0 of the plugin, the
+  -- plan is to use a non-exportable security object.
+  local master_sobject = assert(
+    Sobject { kid = input.master_key_id }, "cannot access master key"
+  )
+  local master_key_bytes = assert(
+    master_sobject:export().value, "cannot export master key"
+  )
+
+  local master_key = deserialize_bip32(master_key_bytes)
+
+  local response
+  if input.coin == "eth" then
+    response = sign_eth(master_key, input.msg_hash)
+  elseif input.coin == "utxo" then
+    response = sign_utxo(master_key, input.path, input.msg_hash)
+  else
+    return { error = "unsupported coin " .. input.coin }
+  end
+  response.coin = input.coin
+
+  return response
 end
