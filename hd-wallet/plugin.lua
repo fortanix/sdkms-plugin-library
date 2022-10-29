@@ -105,9 +105,9 @@ local function hash_160(data)
   local sha256_hash = assert(digest {
     data = data,
     alg  = 'SHA256'
-  }).digest:hex()
+  }).digest
   local ripemd160_hash = assert(digest {
-    data = Blob.from_hex(sha256_hash),
+    data = sha256_hash,
     alg  = 'RIPEMD160'
   }).digest
 
@@ -143,16 +143,12 @@ local function ser_32(i)
   return Blob.from_hex(string.format("%08X", i))
 end
 
--- local function parse_256(p)
---   error("unimplemented")
--- end
-
 local function deserialize_bip32(blob)
   local key = {
     ["version"]     = blob:slice(1, 4),   --  4 bytes
     ["depth"]       = blob:slice(5, 5),   --  1 byte
-    ["index"]       = blob:slice(6, 9),   --  4 bytes
-    ["parent_fgpt"] = blob:slice(10, 13), --  4 bytes
+    ["parent_fgpt"] = blob:slice(6, 9),   --  4 bytes
+    ["index"]       = blob:slice(10, 13), --  4 bytes
     ["chain_code"]  = blob:slice(14, 45), -- 32 bytes
     -- ignored                            --  1 0x00 byte
     ["key_bytes"]   = blob:slice(47, 78), -- 32 bytes
@@ -165,9 +161,35 @@ local function deserialize_bip32(blob)
   return key
 end
 
+-- Useful for debugging:
+-- local function serialize_bip32(key)
+--   local blob =
+--     key.version ..
+--     key.depth ..
+--     key.parent_fgpt ..
+--     key.index ..
+--     key.chain_code ..
+--     Blob.from_hex("00") ..
+--     key.key_bytes
+
+--   -- Add double SHA-256 checksum
+--   local inner = assert(digest {
+--     data = blob,
+--     alg  = 'SHA256'
+--   }).digest
+--   local checksum = assert(digest {
+--     data = inner,
+--     alg  = 'SHA256'
+--   }).digest:slice(1, 4)
+
+--   blob = blob .. checksum
+
+--   return blob:base58()
+-- end
+
 local function compute_fingerprint(key)
   local pub_key = public_from_private(key["key_bytes"])
-  return hash_160(pub_key):slice(1, 8)
+  return hash_160(pub_key):slice(1, 4)
 end
 
 local function maybe_hard(path)
@@ -213,7 +235,7 @@ local function derive_private_child(parent_key, index)
 
   local ser_32_k_par = parent_key['key_bytes']
   if tonumber(index) >= FIRST_HARDENED_CHILD then
-    data_for_hmac = Blob:from_hex("00") .. ser_32_k_par .. ser_32_index
+    data_for_hmac = Blob.from_hex("00") .. ser_32_k_par .. ser_32_index
   else
     data_for_hmac = public_from_private(ser_32_k_par) .. ser_32_index
   end
@@ -239,7 +261,10 @@ local function derive_private_child(parent_key, index)
   local child_key_scalar = BigNum.from_bytes_be(i_left)
   child_key_scalar:add(k_par)
   child_key_scalar:mod(BigNum.from_bytes_be(Blob.from_hex(ORDER_SECP256K1)))
-  local child_key_scalar_bytes = Blob.from_hex(child_key_scalar:to_bytes_be():hex())
+  -- Pad to 32 bytes in case of leading zeros
+  local child_key_scalar_bytes = Blob.from_hex(
+    child_key_scalar:to_bytes_be_zero_pad(32):hex()
+  )
 
   local depth = string.format("%02X", tonumber(parent_key.depth:hex()) + 1)
   local parent_fgpt = compute_fingerprint(parent_key)
