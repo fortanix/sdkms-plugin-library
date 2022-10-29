@@ -41,19 +41,19 @@
 --
 -- ### Output
 --{
+--  "coin": "eth",
 --  "xpub": "<HD-Wallet-Public-Key>",
 --  "coin_signature": "<Bitcoin-canonicalized-ECDSA-signature>",
 --  "signature": "<ECDSA signature>"
 --}
 --
--- * `master_key_id`: UUID of master key imported in SDKMS
--- * `path`: Path of key to be derived to sign e.g: m/0, m/1, m/2/10 etc
--- * `msg_hash`: 32 byte SHA-3 message hash
--- * `coin`: coin type utxo or eth
--- * `xprv`: BIP0032 private key
--- * `xpub`: BIP0032 public key
+-- * `master_key_id`:  UUID of master key imported in SDKMS
+-- * `path`:           Path of key to be derived for signature, e.g: m/2/10H
+-- * `msg_hash`:       32-byte SHA-3 message hash
+-- * `coin`:           coin type utxo or eth
+-- * `xpub`:           BIP0032 public key
+-- * `signature`:      ECDSA signature
 -- * `coin_signature`: Bitcoin canonicalized ECDSA signature
--- * `signature`: ECDSA signature
 --
 -- ## References
 --
@@ -119,7 +119,7 @@ end
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
 
 -- Named "point(p)" in the spec
-local function public_from_private(blob)
+local function public_blob_from_private_blob(blob)
   assert(#blob == 32)
   local sobject = import_ec_key(blob)
   local asn1_public_key = sobject.pub_key
@@ -161,34 +161,37 @@ local function deserialize_bip32(blob)
   return key
 end
 
--- Useful for debugging:
--- local function serialize_bip32(key)
---   local blob =
---     key.version ..
---     key.depth ..
---     key.parent_fgpt ..
---     key.index ..
---     key.chain_code ..
---     Blob.from_hex("00") ..
---     key.key_bytes
+-- Assumes that key is private. Obtains public key and serializes according to
+-- the spec.
+local function serialize_bip32_pubkey(key)
+  local version = Blob.from_hex(PUBLIC_WALLET_VERSION)
+  local key_bytes = public_blob_from_private_blob(key["key_bytes"])
 
---   -- Add double SHA-256 checksum
---   local inner = assert(digest {
---     data = blob,
---     alg  = 'SHA256'
---   }).digest
---   local checksum = assert(digest {
---     data = inner,
---     alg  = 'SHA256'
---   }).digest:slice(1, 4)
+  local blob =
+    version ..
+    key.depth ..
+    key.parent_fgpt ..
+    key.index ..
+    key.chain_code ..
+    key_bytes
 
---   blob = blob .. checksum
+  -- Add double SHA-256 checksum
+  local inner = assert(digest {
+    data = blob,
+    alg  = 'SHA256'
+  }).digest
+  local checksum = assert(digest {
+    data = inner,
+    alg  = 'SHA256'
+  }).digest:slice(1, 4)
 
---   return blob:base58()
--- end
+  blob = blob .. checksum
+
+  return blob:base58()
+end
 
 local function compute_fingerprint(key)
-  local pub_key = public_from_private(key["key_bytes"])
+  local pub_key = public_blob_from_private_blob(key["key_bytes"])
   return hash_160(pub_key):slice(1, 4)
 end
 
@@ -237,7 +240,7 @@ local function derive_private_child(parent_key, index)
   if tonumber(index) >= FIRST_HARDENED_CHILD then
     data_for_hmac = Blob.from_hex("00") .. ser_32_k_par .. ser_32_index
   else
-    data_for_hmac = public_from_private(ser_32_k_par) .. ser_32_index
+    data_for_hmac = public_blob_from_private_blob(ser_32_k_par) .. ser_32_index
   end
 
   -- Import parent chain code as hmac key
@@ -339,6 +342,7 @@ local function sign_eth(master_key, msg_hash)
   end
 
   return {
+    xpub           = serialize_bip32_pubkey(master_key),
     signature      = sig:hex(),
     coin_signature = (r_bytes_padded .. s_bytes_padded .. v):hex()
   }
@@ -366,8 +370,12 @@ local function sign_utxo(master_key, path, msg_hash)
     hash_alg                = "SHA256",
     deterministic_signature = true
   }))
+  local xpub = serialize_bip32_pubkey(child_key)
 
-  return { signature = sig.signature:hex() }
+  return {
+    signature = sig.signature:hex(),
+    xpub = xpub
+  }
 end
 
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
