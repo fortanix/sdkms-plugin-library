@@ -1,6 +1,6 @@
 {
     "name": "Google Cloud BYOK",
-    "version": 1.2,
+    "version": 1.3,
     "short_description": "This plugin implements the Bring your own key (BYOK) model for Google cloud. Using this plugin you can keep your key inside Fortanix Self-Defending KMS and use BYOK features of Google Cloud KMS.",
     "release_notes": [
       "Initial Release"
