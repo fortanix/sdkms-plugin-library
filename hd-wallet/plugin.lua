@@ -47,7 +47,7 @@
 --  "signature": "<ECDSA signature>"
 --}
 --
--- * `master_key_id`:  UUID of master key imported in SDKMS
+-- * `master_key_id`:  UUID of master key imported in DSM
 -- * `path`:           Path of key to be derived for signature, e.g: m/2/10H
 -- * `msg_hash`:       32-byte SHA-3 message hash
 -- * `coin`:           coin type utxo or eth
@@ -87,10 +87,7 @@ local ORDER_SECP256K1_LEN = 32
 -- Create a transient EC Sobject with the given value
 local function import_ec_key(blob)
     assert(#blob == 32, "cannot import ec key due to bad length")
-    local asn1 =
-    Blob.from_hex("302E0201010420")
-    .. blob
-    .. Blob.from_hex("A00706052B8104000A")
+    local asn1 = Blob.from_hex("302E0201010420") .. blob .. Blob.from_hex("A00706052B8104000A")
 
     return assert(Sobject.import {
         obj_type       = "EC",
@@ -119,6 +116,9 @@ end
 ---------- @@@@@@@@@@@@@@@@@@@@@@@@@ ----------
 
 -- Named "point(p)" in the spec
+--
+-- Here, DSM is used only for scalar multiplication. As an improvement, this
+-- function could perform the scalar multiplication using the Lua class.
 local function public_blob_from_private_blob(blob)
     assert(#blob == 32)
     local sobject = import_ec_key(blob)
@@ -156,7 +156,7 @@ local function deserialize_bip32(blob)
     }
 
     if key.version:hex() ~= PRIVATE_WALLET_VERSION then
-        error("Unexpected key version " .. key.version)
+        error("Unexpected key version " .. key.version:hex())
     end
 
     return key
@@ -168,13 +168,12 @@ local function serialize_bip32_pubkey(key)
     local version = Blob.from_hex(PUBLIC_WALLET_VERSION)
     local key_bytes = public_blob_from_private_blob(key["key_bytes"])
 
-    local blob =
-    version ..
-    key.depth ..
-    key.parent_fgpt ..
-    key.index ..
-    key.chain_code ..
-    key_bytes
+    local blob = version ..
+                 key.depth ..
+                 key.parent_fgpt ..
+                 key.index ..
+                 key.chain_code ..
+                 key_bytes
 
     -- Add double SHA-256 checksum
     local inner = assert(digest {
@@ -267,7 +266,7 @@ local function derive_private_child(parent_key, index)
     child_key_scalar:mod(BigNum.from_bytes_be(Blob.from_hex(ORDER_SECP256K1)))
     -- Pad to 32 bytes in case of leading zeros
     local child_key_scalar_bytes = Blob.from_hex(
-    child_key_scalar:to_bytes_be_zero_pad(32):hex()
+        child_key_scalar:to_bytes_be_zero_pad(32):hex()
     )
 
     local depth = string.format("%02X", tonumber(parent_key.depth:hex()) + 1)
@@ -287,9 +286,19 @@ end
 -----------            ETH            -----------
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
 
-local function sign_eth(master_key, msg_hash)
-    local master_key_private_bytes = master_key['key_bytes']
-    local signing_key = import_ec_key(master_key_private_bytes)
+local function sign_eth(master_key, path, msg_hash)
+    local parent_key = master_key
+    local child_key
+
+    local indices = parse_path(path)
+
+    -- Obtain last key from path
+    for i = 2, #indices do
+        child_key = derive_private_child(parent_key, tonumber(indices[i]))
+        parent_key = child_key
+    end
+
+    local signing_key = import_ec_key(child_key["key_bytes"])
 
     local sig = assert(signing_key:sign {
         hash                    = Blob.from_hex(msg_hash),
@@ -304,15 +313,11 @@ local function sign_eth(master_key, msg_hash)
     assert(sig:slice(1, 1) == Blob.from_hex("30"), "bad signature") -- SEQUENCE
     local sig_len = tonumber(sig:slice(2, 2):hex(), 16)
     assert(#sig == sig_len + 2, "bad signature length")
-    assert(
-    sig:slice(3, 3) == Blob.from_hex("02"), "bad signature"
-    ) -- INTEGER
+    assert(sig:slice(3, 3) == Blob.from_hex("02"), "bad signature") -- INTEGER
     local r_len = tonumber(sig:slice(4, 4):hex(), 16)
     local r_left = 5
     local r_right = r_left + r_len - 1
-    assert(
-    sig:slice(r_right + 1, r_right + 1) == Blob.from_hex("02"), "bad signature"
-    ) -- INTEGER
+    assert(sig:slice(r_right + 1, r_right + 1) == Blob.from_hex("02"), "bad signature") -- INTEGER
     local s_len = tonumber(sig:slice(r_right + 2, r_right + 2):hex(), 16)
     local s_left = r_right + 3
     local s_right = s_left + s_len - 1
@@ -344,8 +349,8 @@ local function sign_eth(master_key, msg_hash)
 
     return {
         xpub           = serialize_bip32_pubkey(master_key),
-        signature      = sig:hex(),
-        coin_signature = (r_bytes_padded .. s_bytes_padded .. v):hex()
+        signature      = sig:hex():lower(),
+        coin_signature = (r_bytes_padded .. s_bytes_padded .. v):hex():lower()
     }
 end
 
@@ -374,7 +379,7 @@ local function sign_utxo(master_key, path, msg_hash)
     local xpub = serialize_bip32_pubkey(child_key)
 
     return {
-        signature = sig.signature:hex(),
+        signature = sig.signature:hex():lower(),
         xpub = xpub
     }
 end
@@ -383,7 +388,7 @@ end
 ----------- Main method for Plugin    -----------
 ----------- @@@@@@@@@@@@@@@@@@@@@@@@@ -----------
 function run(input)
-    local required_fields = { "master_key_id", "msg_hash", "coin" }
+    local required_fields = { "master_key_id", "path", "msg_hash", "coin" }
     for _, field in pairs(required_fields) do
         if not input[field] then
             error("missing argument " .. field)
@@ -393,21 +398,21 @@ function run(input)
     -- This is a critical security operation. On version 2.0 of the plugin, the
     -- plan is to use a non-exportable security object.
     local master_sobject = assert(
-    Sobject { kid = input.master_key_id }, "cannot access master key"
+        Sobject { kid = input.master_key_id }, "cannot access master key"
     )
     local master_key_bytes = assert(
-    master_sobject:export().value, "cannot export master key"
+        master_sobject:export().value, "cannot export master key"
     ):bytes()
 
     local master_key_decoded = assert(
-    Blob.from_base58(master_key_bytes),
-    "cannot base58 decode private key"
+        Blob.from_base58(master_key_bytes),
+        "cannot base58 decode private key"
     )
     local master_key = deserialize_bip32(master_key_decoded)
 
     local response
     if input.coin == "eth" then
-        response = sign_eth(master_key, input.msg_hash)
+        response = sign_eth(master_key, input.path, input.msg_hash)
     elseif input.coin == "utxo" then
         response = sign_utxo(master_key, input.path, input.msg_hash)
     else
