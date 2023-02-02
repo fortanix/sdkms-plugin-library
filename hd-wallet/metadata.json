@@ -1,0 +1,9 @@
+{
+  "name": "HD Wallet",
+  "version": 1.3,
+  "short_description": "This plugin implements hierarchical deterministic wallets (or \"HD Wallets\") BIP0032 protocol.",
+  "release_notes": [
+    "Initial Release",
+    "Version 1.3 - improved error handling, readability, security checks, tests and documentation."
+  ]
+}
