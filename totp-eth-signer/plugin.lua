@@ -10,7 +10,6 @@ local totp_name_prefix = "totp/"
 -- A trimmed down copy of basexx library, taken from:
 -- https://github.com/aiq/basexx/blob/v0.4.1/lib/basexx.lua
 
-local scratch1 = {}
 local basexx = {}
 
 local function divide_string(str, max)
@@ -520,11 +519,8 @@ function get_pub_key(wallet_name, key_index)
   end
 
    
-  local pub_key = Blob.from_base58(serialize_bip32_pubkey(child_key.pub_key))
-  table.insert(scratch1, pub_key:slice(46,78):hex())
    return {
        xpub = child_key.pub_key:slice(46,78):hex():lower(),
-    scratch1 = scratch1
    }
 end
 
@@ -544,7 +540,6 @@ function sign_eth(wallet_name, key_index, msg_hash)
     })
    
   
-  table.insert(scratch1, master_key:export().value)
    for i = 2, #indices do
       if tonumber(indices[i]) < FIRST_HARDENED_CHILD then 
       	child_key = assert(master_key:transform {
