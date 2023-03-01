@@ -1,5 +1,5 @@
 ----------------- Constant --------------------
-local MASTER_KEY =  "MASTER_KEY"
+local SEED =  "SEED"
 
 -- TOTP URLs will contain this value as `issuer`
 local totp_issuer = "Fortanix DSM"
@@ -10,6 +10,7 @@ local totp_name_prefix = "totp/"
 -- A trimmed down copy of basexx library, taken from:
 -- https://github.com/aiq/basexx/blob/v0.4.1/lib/basexx.lua
 
+local scratch1 = {}
 local basexx = {}
 
 local function divide_string(str, max)
@@ -393,30 +394,6 @@ function ecdsa_sign(private_key, input)
    return assert(subkey:sign { hash = input, hash_alg = "SHA256", deterministic_signature = true }).signature
 end
 
-
--- deserialize bip32 key
-function deserialize(exported_master_key_serialized)
-   local blob_key = Blob.from_base58(exported_master_key_serialized)
-
-   if #blob_key ~= 82 then
-      error("Unexpected key length" .. #blob_key)
-   end
-
-   key.version = blob_key:slice(1, 4)
-   key.depth = blob_key:slice(5, 5)
-   key.index = blob_key:slice(6, 9)
-   key.fingerprint = blob_key:slice(10, 13)
-   key.chain_code = blob_key:slice(14, 45)
-   key.key = blob_key:slice(46, 78)
-   key.checksum = blob_key:slice(79, 82)
-
-   if key.version:hex() ~= PRIVATE_WALLET_VERSION then
-      error("Unexpected key version")
-   end
-
-   return key
-end
-
 function format_rs(signature)
    local signature_length = tonumber(string.sub(signature, 3, 4), 16) + 2
    local r_length = tonumber(string.sub(signature, 7, 8), 16)
@@ -441,86 +418,12 @@ function format_rs(signature)
    }
 end
 
--- derive new child key from parent key
-function derive_new_child(parent_key, child_idx)
-   local index_hex = num2hex(child_idx, 8)
-
-   local input
-
-   if parent_key.version:hex() == PRIVATE_WALLET_VERSION and tonumber(child_idx) < FIRST_HARDENED_CHILD then
-      -- parent is private
-      -- input equal to public key of parent private
-      input = compute_public_point(parent_key.key:slice(2, 33))
-   else
-      input = parent_key.key
-   end
-
-   input = input .. Blob.from_hex(index_hex)
-
-   local hmac_key = assert(Sobject.import { name = "BIP32 mac", obj_type = "HMAC", value = parent_key.chain_code, transient = true })
-   local hmac = assert(hmac_key:mac { data = input, alg = 'SHA512'}).digest
-
-   fingerprint = hash160(compute_public_point(parent_key.key:slice(2,33)))
-
-   child_key = {
-      index = Blob.from_hex(index_hex),
-      chain_code = hmac:slice(33, 64),
-      depth = Blob.from_hex(num2hex(tonumber(parent_key.depth:hex()) + 1, 2)),
-      version = parent_key.version,
-      fingerprint = fingerprint:slice(1, 4),
-      -- prefixing 00 to make key size 33 bytes
-      key = Blob.from_hex("00") .. add_scalar(hmac:slice(1, 32), parent_key.key)
-   }
-
-   local child_key_blob = child_key.version .. child_key.depth .. child_key.fingerprint .. child_key.index .. child_key.chain_code .. child_key.key
-   child_key.checksum = sha256d(child_key_blob):slice(1, 4)
-
-   return child_key
-end
-
--- convert number into hex string
-function num2hex(num, size)
-   return BigNum.from_int(num):to_bytes_be_zero_pad(size/2):hex()
-end
-
-
 function maybe_hard(path)
    if string.sub(path, -1) == 'H' then
       return tostring(tonumber(string.sub(path, 0, #path - 1)) + FIRST_HARDENED_CHILD)
    else
       return tostring(tonumber(path))
    end
-end
-
--- return public key from private key
-function compute_public_point(key_blob)
-   local secp256k1 = EcGroup.from_name('SecP256K1')
-   local secret_scalar = BigNum.from_bytes_be(key_blob)
-   local public_point = secp256k1:generator():mul(secret_scalar)
-   return public_point:to_binary()
-end
-
--- return RIPEMD(SHA-256(data))
-function hash160(data_blob)
-   local sha256_hash = assert(digest { data = data_blob, alg = 'SHA256' }).digest
-   local ripmd160_hash = assert(digest { data = sha256_hash, alg = 'RIPEMD160' }).digest
-   return ripmd160_hash
-end
-
--- Return SHA-256(SHA-256(data))
-function sha256d(data_blob)
-   local sha256_hash1 = assert(digest { data = data_blob, alg = 'SHA256' }).digest
-   local sha256_hash2 = assert(digest { data = sha256_hash1, alg = 'SHA256' }).digest
-   return sha256_hash2
-end
-
--- add two secret scalar values
-function add_scalar(k1, k2)
-   local a = BigNum.from_bytes_be(k1)
-   local b = BigNum.from_bytes_be(k2)
-   a:add(b)
-   a:mod(N)
-   return a:to_bytes_be_zero_pad(32)
 end
 
 -- parse input path
@@ -565,19 +468,63 @@ function get_path(wallet_name, key_index)
    return path
 end
 
+local function serialize_bip32_pubkey(blob)
+
+    -- Add double SHA-256 checksum
+    local inner = assert(digest {
+        data = blob,
+        alg  = 'SHA256'
+    }).digest
+    local checksum = assert(digest {
+        data = inner,
+        alg  = 'SHA256'
+    }).digest:slice(1, 4)
+
+    blob = blob .. checksum
+
+    return blob:base58()
+end
 
 function get_pub_key(wallet_name, key_index)
    local path = get_path(wallet_name, key_index)
    local indices = parse_path(path)
-   local master_key_obj = assert(Sobject {name = MASTER_KEY}, "master key not found")
-   local master_key_bytes = assert(master_key_obj:export(), "master key not exportable")
-   local master_key = deserialize(master_key_bytes.value:bytes())
+   local hmac_seed =  assert(Sobject {name = SEED}, "SEED not found")
+   local master_key = assert(hmac_seed:derive {
+    name = "MASTER_KEY",
+    key_type = "BIP32", 
+    key_size = 0,  -- Unused but necessary, unfortunately
+    mechanism = { bip32_master_key = { network = "mainnet" }},
+    transient = true
+    })
+
    for i = 2, #indices do
-      child_key = derive_new_child(master_key, tonumber(indices[i]))
+      if tonumber(indices[i]) < FIRST_HARDENED_CHILD then 
+      	child_key = assert(master_key:transform {
+      		name = "SIGNING_KEY",
+      		key_type = "BIP32", 
+      		key_size = 0,  -- Unused but necessary, unfortunately
+      		mechanism = { bip32_weak_child = { index = tonumber(indices[i]) }},
+      		transient = true
+  		})
+      else 
+      	child_key = assert(master_key:derive {
+      		name = "SIGNING_KEY",
+      		key_type = "BIP32", 
+      		key_size = 0,  -- Unused but necessary, unfortunately
+      		mechanism = { bip32_hardened_child = { index = tonumber(indices[i]) }},
+      		transient = true
+  		})
+      	
+      end
       master_key = child_key
-   end
+  end
+
+   
+  local pub_key = Blob.from_base58(serialize_bip32_pubkey(child_key.pub_key))
+  table.insert(scratch1, pub_key:slice(46,78):hex())
    return {
-       xpub = compute_public_point(child_key.key):hex():lower()
+       xpub = child_key.pub_key:slice(46,78):hex():lower(),
+    scratch1 = scratch1
    }
 end
 
@@ -586,24 +533,48 @@ function sign_eth(wallet_name, key_index, msg_hash)
 
    local path = get_path(wallet_name, key_index)
    local indices = parse_path(path)
-   local master_key_obj = assert(Sobject {name = MASTER_KEY}, "master key not found")
-   local master_key_bytes = assert(master_key_obj:export(), "master key not exportable")
+   local hmac_seed =  assert(Sobject {name = SEED }, "SEED not found")
 
-   local master_key = deserialize(master_key_bytes.value:bytes())
-
+   local master_key = assert(hmac_seed:derive {
+    name = "MASTER_KEY1",
+    key_type = "BIP32", 
+    key_size = 0,  -- Unused but necessary, unfortunately
+    mechanism = { bip32_master_key = { network = "mainnet" }},
+    transient = true
+    })
+   
+  
+  table.insert(scratch1, master_key:export().value)
    for i = 2, #indices do
-      child_key = derive_new_child(master_key, tonumber(indices[i]))
+      if tonumber(indices[i]) < FIRST_HARDENED_CHILD then 
+      	child_key = assert(master_key:transform {
+      		name = "SIGNING_KEY",
+      		key_type = "BIP32", 
+      		key_size = 0,  -- Unused but necessary, unfortunately
+      		mechanism = { bip32_weak_child = { index = tonumber(indices[i]) }},
+      		transient = true
+  		})
+      else 
+      	child_key = assert(master_key:derive {
+      		name = "SIGNING_KEY",
+      		key_type = "BIP32", 
+      		key_size = 0,  -- Unused but necessary, unfortunately
+      		mechanism = { bip32_hardened_child = { index = tonumber(indices[i]) }},
+      		transient = true
+  		})
+      	
+      end
       master_key = child_key
-   end
+  end
+   
+   local signature = assert(master_key:sign { hash = Blob.from_hex(msg_hash), hash_alg = "SHA256", deterministic_signature = true }).signature
 
-   local signature = ecdsa_sign(child_key.key:slice(2, 33), Blob.from_hex(msg_hash)):hex()
-
-   local rs = format_rs(signature)
+   local rs = format_rs(signature:hex())
 
    return {
       	r = rs.r:to_bytes_be_zero_pad(32):hex():lower(),
       	s = rs.s:to_bytes_be_zero_pad(32):hex():lower(),
-    	xpub = compute_public_point(child_key.key):hex():lower()
+    	xpub = serialize_bip32_pubkey(master_key.pub_key)
    }
 
 end
