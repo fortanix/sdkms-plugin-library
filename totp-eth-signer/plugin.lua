@@ -366,32 +366,22 @@ function enc(data)
 end
 
 ----------------- Constant --------------------
-local PRIVATE_WALLET_VERSION =  "0488ADE4"
 local FIRST_HARDENED_CHILD = 0x80000000
 
 -- The order of the secp256k1 curve
 local N = BigNum.from_bytes_be(Blob.from_hex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"))
 
 ------------- BIP32 key structure -------------
-local key = {
-   ["version"]="",     -- 4 byte version
-   ["depth"]="",       -- 1 byte
-   ["index"]="",       -- 4 byte child number
-   ["fingerprint"]="", -- 4 byte parent fingerprint
-   ["chain_code"]="",  -- 32 byte
-   ["key"]="",         -- 33 byte long key
-   ["checksum"]=""    -- checksum of all above
-}
+-- local key = {
+--    ["version"]="",     -- 4 byte version
+--    ["depth"]="",       -- 1 byte
+--    ["index"]="",       -- 4 byte child number
+--    ["fingerprint"]="", -- 4 byte parent fingerprint
+--    ["chain_code"]="",  -- 32 byte
+--    ["key"]="",         -- 33 byte long key
+--    ["checksum"]=""    -- checksum of all above
+-- }
 
-
-function ecdsa_sign(private_key, input)
-   -- Assumed to be previously zero-padded if needed
-   assert(#private_key == 32)
-
-   local asn1_ec_key = Blob.from_hex("302E0201010420").. private_key .. Blob.from_hex("A00706052B8104000A")
-   local subkey = assert(Sobject.import { name = "bip32 ec", obj_type = "EC", elliptic_curve = "SecP256K1", value = asn1_ec_key, transient = true })
-   return assert(subkey:sign { hash = input, hash_alg = "SHA256", deterministic_signature = true }).signature
-end
 
 function format_rs(signature)
    local signature_length = tonumber(string.sub(signature, 3, 4), 16) + 2
@@ -532,7 +522,7 @@ function sign_eth(wallet_name, key_index, msg_hash)
    local hmac_seed =  assert(Sobject {name = SEED }, "SEED not found")
 
    local master_key = assert(hmac_seed:derive {
-    name = "MASTER_KEY1",
+    name = "MASTER_KEY",
     key_type = "BIP32", 
     key_size = 0,  -- Unused but necessary, unfortunately
     mechanism = { bip32_master_key = { network = "mainnet" }},
