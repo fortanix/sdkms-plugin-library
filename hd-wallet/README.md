@@ -26,6 +26,7 @@ For UTXO coin (BTC, LTC, BCH, etc.):
 For ETH:
 
  "coin": "eth",
+ "path": "m/0'/42",
  "msg_hash": "45a0ee821b05400f513891bbb567a99139f3df72e9e1d4b48186841cc5996d2f"
 
 

@@ -20,8 +20,6 @@ The plugin can be used to:
 
  - Create a HMAC type security object in SDKMS named SEED.
 
- - **Example Master Key:** `xprv9s21ZrQH143K31xYSDQpPDxsXRTUcvj2iNHm5NUtrGiGG5e2DtALGdso3pGz6ssrdK4PFmM8NSpSBHNqPqm55Qn3LqFtT2emdEXVYsCzC2U`
-
 ## Register a user for 2FA using TOTP
 
  **Input Format**
