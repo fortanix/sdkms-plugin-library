@@ -1,6 +1,6 @@
 {
     "name": "TOTP Ethereum Signer",
-    "version": 1.0,
+    "version": 2.0,
     "short_description": "This plugin implements an Ethereum Signer. A wallet can optionally be registered to support 2FA using Time-based One Time Passwords (TOTP).",
     "release_notes": [
       "Initial release"
