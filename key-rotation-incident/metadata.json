@@ -1,0 +1,8 @@
+{
+    "name": "Notify Fortanix DSM key rotation reminders through ServiceNow Incidents",
+    "version": 1.0,
+    "short_description": "This plugin can be used to monitor key rotation schedule in Fortanix DSM and generate alerts using ServiceNow Incidents",
+    "release_notes": [
+      "Initial release"
+    ]
+}
