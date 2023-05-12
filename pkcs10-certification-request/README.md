@@ -1,7 +1,7 @@
 # PKCS #10 Certification Request
 
 ## Introduction
-This plugin can produce PKCS #10 Certfication Request for a asymmetric security object
+This plugin can produce PKCS #10 Certification Request for a asymmetric security object
 in DSM. The sobject needs to be in a group to which this plugin has access.
 See [RFC 2986](https://datatracker.ietf.org/doc/html/rfc2986) for more details about PKCS #10.
 
@@ -36,6 +36,12 @@ Assuming there exists an sobject of type RSA/EC named "Subject key", following w
           "example.com",
           "example2.com"
         ],
+        "ip_addresses": [
+          "127.0.0.1",
+          "2001:db8:3333:4444:5555:6666:7777:8888",
+          "2001:db8:3333:4444:5555:6666:1.2.3.4",
+          "::1234:5678:1.2.3.4"
+        ],
         "critical": true
       },
       "<any_other_extension_oid>": {
@@ -57,9 +63,10 @@ depends on that particular attribute. Like `extensionRequest` only allows a sing
 
 Also, special syntax could be available for extensions specified within `extensionRequest` attribute. If not, `der_value` can be
 used and will also be prioritised over special syntax like above. Currently, special syntax in extensions is only supported for subjectAlternativeName
-as shown above and it only supports `dns_names` for now.
+as shown above and it only supports `dns_names` and `ip_addresses` for now.
 
 ## References
 - [RFC 5280](https://datatracker.ietf.org/doc/html/rfc5280)
 - [RFC 2986](https://datatracker.ietf.org/doc/html/rfc2986)
 - [RFC 2985](https://datatracker.ietf.org/doc/html/rfc2985)
+

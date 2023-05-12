@@ -1,8 +1,9 @@
 {
   "name": "PKCS #10 Certification Request",
-  "version": 1.0,
+  "version": 1.1,
   "short_description": "Issue PKCS #10 Certification Signing Request (CSR) for RSA/EC Security Objects in DSM",
   "release_notes": [
-    "Initial release"
+    "Add support for IP addresses in SAN"
   ]
 }
+

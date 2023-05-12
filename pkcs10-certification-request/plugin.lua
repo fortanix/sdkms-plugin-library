@@ -76,6 +76,20 @@ function add_san(csr_builder, critical, extension_info)
          :add_string(dns_name, 'ia5')
    end
 
+   local ip_addresses = extension_info.ip_addresses
+   if type(ip_addresses) ~= 'table' then
+      return nil, 'ip_addresses should be a list'
+   end
+
+   for _, ip_address_str in ipairs(ip_addresses)
+   do
+      local ip_addr = IpAddr.new(ip_address_str)
+
+      der_encoded_value_builder = der_encoded_value_builder
+         :implicit_context(7)
+         :add_octets(Blob.from_bytes(ip_addr:octets()))
+   end
+
    local der_encoded_value = der_encoded_value_builder:end_seq():value()
 
    csr_builder:add_extension(Oid.from_str('subjectAlternativeName'), critical, der_encoded_value)
@@ -151,3 +165,4 @@ function run(input)
 
    return format_pem(Blob.from_bytes(csr:to_der()):base64(), "CERTIFICATE REQUEST")
 end
+
