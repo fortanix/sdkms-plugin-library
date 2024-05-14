@@ -1,0 +1,9 @@
+This plugin is designed to address the following use cases:
+
+Import Secrets: Import an existing secret from AKV into DSM for secure management.
+List Secrets: Retrieve a list of secrets stored in AKV.
+List Secret Versions: Retrieve a list of versions for a specific secret stored in AKV.
+Delete Secret: Delete a secret from AKV.
+Recover Secret: Recover a previously deleted secret in AKV.
+Purge Secret: Permanently remove a deleted secret from AKV.
+Import All Secrets: Import all secrets from AKV into DSM for comprehensive management.

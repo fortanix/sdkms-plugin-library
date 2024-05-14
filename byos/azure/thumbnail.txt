@@ -1,0 +1,1 @@
+This plugin implements the Bring your own Secret (BYOS) model for Azure Key Vault. Using this plugin you can manage your Secrets using Fortanix DSM.
