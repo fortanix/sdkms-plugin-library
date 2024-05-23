@@ -1,0 +1,12 @@
+This plugin is designed to address the following use cases:
+
+Create: Create a new secret in AWS Secret Manager. 
+Import Secrets: Import an existing secret from AWS Secret Manager into DSM for secure management.
+Import All Secrets: Import all existing secret from AWS Secret Manager into DSM for secure management.
+List Secrets: Retrieve a list of secrets stored in AWS Secret Manager.
+List Secret Versions: Retrieve a list of versions for a specific secret stored in AWS Secret Manager.
+Delete Secret: Delete a secret from AWS Secret Manager.
+Recover Secret: Recover a previously deleted secret in AWS Secret Manager.
+Rotate Secret: Rotate secrets to generate new versions from AWS Secret Manager.
+Export: Exports a secret from Fortanix DSM to AWS Secret Manager.
+
