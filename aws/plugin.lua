@@ -442,11 +442,18 @@ function aws_request(secret_id, amzTarget, request_body, method)
   if response == nil or err ~= nil then
     return nil, err
   end
-  if response.status ~= 200 then
-    if response.body ~= nil then return json.decode(response.body) end
+
+  -- An error is returned as the response and should be handled
+  if response.status >= 400 then
+    if response.body ~= nil then
+      local err_decoded = json.decode(response.body)
+      -- logging to help identify issues in the plugin going forward.
+      AuditLog.log { message = "__type: "..err_decoded["__type"]..", message: "..err_decoded.message, severity = 'CRITICAL'}
+      return nil, err_decoded
+    end
     return nil, response
   end
-  return json.decode(response.body), err
+  return json.decode(response.body), nil
 end
 
 function get_sso_token(secret_id)
