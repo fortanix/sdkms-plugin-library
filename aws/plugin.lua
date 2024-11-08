@@ -1,273 +1,36 @@
--- Name: AWS BYOK
--- Version: 2.1
--- Description:## Short Description
--- This plugin implements the Bring your own key (BYOK) model for AWS cloud. Using this plugin you can keep your key inside Fortanix Self-Defending KMS and use BYOK features of AWS KMS.
--- 
--- ### ## Introduction
--- 
--- The cloud services provide many advantages but the major disadvantage of cloud providers has been security because physically your data resides with the cloud provider. To keep data secure in a cloud provider environment, enterprises use encryption. So securing their encryption keys become significantly important. Bring Your Own Key (BYOK) allows enterprises to encrypt their data and retain control and management of their encryption keys. This plugin provides an implementation to use the AWS cloud BYOK model.
--- 
--- ## Requirenment
--- 
--- - Fortanix Self-Defending KMS Version >= 3.17.1330
--- 
--- ## Use cases
--- 
--- The plugin can be used to
--- 
--- - Push Fortanix Self-Defending KMS key in AWS KMS
--- - List Fortanix Self-Defending KMS AWS BYOK key
--- - Rotate Fortanix Self-Defending KMS AWS BYOK key
--- - Disable AWS BYOK key from Fortanix Self-Defending KMS
--- - Enable AWS BYOK key from Fortanix Self-Defending KMS
--- - Delete AWS BYOK key from Fortanix Self-Defending KMS
--- - Reimport key material from Fortanix Self-Defending KMS to AWS CMK
--- 
--- ## Setup
--- 
--- - Log in to AWS portal
--- - Create AWS IAM policy
--- - Create AWS KMS plicy
--- - Attach policy to IAM user
--- 
--- ## Input/Output JSON object format
--- 
--- ### Configure operation
--- 
--- This operation configures AWS IAM secret key and access key in Fortanix Self-Defending KMS and returns a UUID. You need to pass this UUID for other operations. This is a one time process.
--- 
--- #### Parameters 
--- 
--- * `operation`: The operation which you want to perform. A valid value is `configure`.
--- * `secret_key`: AWS secret key
--- * `access_key`: AWS access key
--- 
--- #### Example
--- 
--- Input JSON
--- ```
--- {
---   "operation": "configure",
---   "secret_key": "GZA....sz",
---   "access_key": "AK...ZCX"
--- }
--- ```
--- Output JSON
--- ```
--- {
---   "secret_id": "90cc4fdf-db92-4c52-83a5-ffaec726b224"
--- }
--- ```
--- 
--- ### Create operation
--- 
--- This operation will create an AES-256 key in Fortanix Self-Defending KMS and import it in AWS KMS.
--- 
--- #### Parameters 
--- 
--- * `operation`: The operation which you want to perform. A valid value is `create`.
--- * `name`: Name of the key
--- * `secret_id`: The response of `configuration` operation. 
--- 
--- #### Example
--- 
--- Input JSON
--- 
--- ```
--- {
---   "operation": "create", 
---   "name": "test-key",
---   "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144"
--- }
--- ```
--- 
--- Output JSON
--- ```
--- {
---   "key_size": 256,
---   "custom_metadata": {
---     "AWS_KEY_ID": "46fa7bfd-24de-4e5d-be94-99fa3e3bf09e"
---   },
---   "created_at": "20200725T155625Z",
---   "lastused_at": "19700101T000000Z",
---   "obj_type": "AES",
---   "never_exportable": false,
---   "state": "Active",
---   "acct_id": "15e5e446-c911-4ad4-92b4-85eabefabfe7",
---   "activation_date": "20200725T155625Z",
---   "creator": {
---     "plugin": "c2aa3055-5532-4ff2-8ca5-cb450c26e280"
---   },
---   "key_ops": [
---     "ENCRYPT",
---     "DECRYPT",
---     "EXPORT",
---     "APPMANAGEABLE"
---   ],
---   "enabled": true,
---   "origin": "FortanixHSM",
---   "kid": "04286b5c-4707-4ed1-bf92-934c7a077d5f",
---   "name": "test-key",
---   "public_only": false,
---   "group_id": "9564adfd-2399-46d0-90c0-4cf80b7bcc33",
---   "compliant_with_policies": true
--- }
--- ```
--- 
--- ### List operation
--- 
--- This operation will list all the BYOK keys from AWS.
--- 
--- #### Parameters 
--- 
--- * `operation`: The operation which you want to perform. A valid value is `list`.
--- * `secret_id`: The response of `configuration` operation. 
--- 
--- #### Example
--- 
--- Input JSON
--- ```
--- "
--- {
---   "operation": "list", 
---   "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144"
--- }
--- "
--- ```
--- 
--- Output JSON
--- ```
--- {
---   "KeyCount":1,
---   "Keys":[
---     {
---       "KeyArn":"arn:aws:kms:us-west-1:513076507034:key/46fa7bfd-24de-4e5d-be94-99fa3e3bf09e",
---       "KeyId":"46fa7bfd-24de-4e5d-be94-99fa3e3bf09e
---     }
---   ],
---   "Truncated\":false
--- }
--- ```
--- 
--- ### Rotate operation
--- 
--- This operation will rotate a key in Fortanix Self-Defending KMS as well as in AWS KMS key.
--- 
--- #### Parameters 
--- 
--- * `operation`: The operation which you want to perform. A valid value is `rotate`.
--- * `name`: Name of the key  
--- * `secret_id`: The response of `configuration` operation. 
--- 
--- #### Example
--- 
--- Input JSON
--- ```
--- {
---   "operation": "rotate", 
---   "name": "test-key",
---   "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144"
--- }
--- ```
--- 
--- Output JSON
--- ```
--- {
---   "obj_type": "AES",
---   "kid": "49521024-e28f-4f6c-82e7-a9f29088ec43",
---   "activation_date": "20200725T155809Z",
---   "lastused_at": "19700101T000000Z",
---   "compliant_with_policies": true,
---   "group_id": "9564adfd-2399-46d0-90c0-4cf80b7bcc33",
---   "enabled": true,
---   "acct_id": "15e5e446-c911-4ad4-92b4-85eabefabfe7",
---   "key_ops": [
---     "ENCRYPT",
---     "DECRYPT",
---     "EXPORT",
---     "APPMANAGEABLE"
---   ],
---   "origin": "FortanixHSM",
---   "created_at": "20200725T155809Z",
---   "key_size": 256,
---   "state": "Active",
---   "creator": {
---     "plugin": "c2aa3055-5532-4ff2-8ca5-cb450c26e280"
---   },
---   "never_exportable": false,
---   "custom_metadata": {
---     "AWS_KEY_ID": "129bfa49-3dde-4d5f-87f7-f883e80e7893"
---   },
---   "name": "test-key",
---   "public_only": false
--- }
--- ```
--- 
--- ### Disable operation
---
--- This operation will disable a AWS KMS key.
---
--- #### Parameters
---
--- * `operation`: The operation which you want to perform. A valid value is `disable`.
--- * `name`: Name of the key
--- * `secret_id`: The response of `configuration` operation.
---
--- #### Example
---
--- Input JSON
--- ```
--- {
---   "operation": "disable",
---   "name": "test-key",
---   "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144"
--- }
--- ```
---
--- Output JSON
--- ```
--- {}
--- ```
---
--- ### Enable operation
---
--- This operation will enable a AWS KMS disabled key.
---
--- #### Parameters
---
--- * `operation`: The operation which you want to perform. A valid value is `enable`.
--- * `name`: Name of the key
--- * `secret_id`: The response of `configuration` operation.
---
--- #### Example
---
--- Input JSON
--- ```
--- {
---   "operation": "enable",
---   "name": "test-key",
---   "secret_id": "e84f0b8c-485b-499c-87d5-d583f8716144"
--- }
--- ```
---
--- Output JSON
--- ```
--- {}
--- ```
---
--- ### Release Notes
--- Added support for the following new features:
--- - Disable AWS BYOK key from Fortanix Self-Defending KMS
--- - Enable AWS BYOK key from Fortanix Self-Defending KMS
--- - Schedule deletion for AWS CMK from Fortanix Self-Defending KMS
--- - Reimport key material from Fortanix Self-Defending KMS to AWS CMK
-
 --[[
+
+## Example inputs:
+
 configure
 {
   "operation": "configure",
   "secret_key": "GZA....sz",
   "access_key": "AK...ZCX"
+}
+
+configure_saml
+{
+  "operation": "configure_saml",
+  "host"     : "dev-95xx74.okta.com",
+  "resource" : "amazon_aws/exk19l...S04x7",
+  "username" : "joe@fortanix.com",
+  "password" : "s$O...x245"
+}
+
+assumerole
+{
+  "operation": "assumerole",
+  "role_arn": "arn:aws:iam::763471887487:role/example-assume-role",
+  "secret_id": "d6807129-27fe-4f64-8509-f9d3326c1de5"
+}
+
+assumerolewithsaml
+{
+  "operation": "assumerolewithsaml",
+  "role_arn": "arn:aws:iam::763471887487:role/SAML-default-role",
+  "principal_arn": "arn:aws:iam::763471887487:saml-provider/OKTA",
+  "secret_id": "88e65210-852e-4bfe-8450-5153fee6e5f9"
 }
 
 create
@@ -311,6 +74,13 @@ delete
   "secret_id": "d6807129-27fe-4f64-8509-f9d3326c1de5"
 }
 
+cancel delete
+{
+  "operation": "cancel_deletion",
+  "name": "test-key",
+  "secret_id": "d6807129-27fe-4f64-8509-f9d3326c1de5"
+}
+
 reimport
 {
   "operation": "reimport",
@@ -318,7 +88,6 @@ reimport
   "secret_id": "d6807129-27fe-4f64-8509-f9d3326c1de5"
 }
 --]]
-
 
 
 local session_ttl = 900 -- 15 mins
@@ -442,11 +211,15 @@ function aws_request(secret_id, amzTarget, request_body, method)
   if response == nil or err ~= nil then
     return nil, err
   end
-  if response.status ~= 200 then
-    if response.body ~= nil then return json.decode(response.body) end
+  -- an error is returned as the response and should be handled
+  if response.status >= 400 then
+    if response.body ~= nil then
+      local err_decoded = json.decode(response.body)
+      return nil, err_decoded
+    end
     return nil, response
   end
-  return json.decode(response.body), err
+  return json.decode(response.body), nil
 end
 
 function get_sso_token(secret_id)
@@ -712,7 +485,7 @@ function aws_create_key(secret_id, name)
    -- local response_json = json.decode(response)
     return response.KeyMetadata.KeyId, nil
   end
-  return response, err
+  return nil, err
 end
 
 function aws_delete_key(secret_id, aws_key_id)
@@ -836,7 +609,7 @@ function run(input)
     if import_params == nil then
       master_key:delete()
       aws_delete_key(input.secret_id, aws_key_id)
-     return {result = import_params, error = err, message = "create BYOK key operation fail"}
+      return {result = import_params, error = err, message = "create BYOK key operation fail"}
     end
     local wrapped_key = wrap_key_for_import(input.secret_id, aws_key_id, master_key, import_params)
 

@@ -1,0 +1,9 @@
+{
+  "name": "AWS BYOK",
+  "version": 3.4,
+  "short_description": "This plugin implements the Bring Your Own Key (BYOK) model for AWS cloud. Using this plugin you can keep your keys inside Fortanix DSM and use BYOK features of AWS KMS.",
+  "release_notes": [
+    "- Add deprecation notice",
+    "- Correctly handle the reporting of errors from AWS to avoid plugin crashing"
+  ]
+}
