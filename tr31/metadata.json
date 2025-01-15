@@ -1,0 +1,9 @@
+{
+    "name": "TR31",
+    "version": 1.0,
+    "short_description": "Plugin for wrapping/unwrapping TR-31 key blocks (ANSI X9.143-2021)",
+    "release_notes": [
+      "Initial release"
+    ]
+}
+
