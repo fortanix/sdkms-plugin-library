@@ -392,7 +392,7 @@ function check_aws_key_store(base_url, headers, datacustodian_group_id)
   
   local json_resp = json.decode(response.body)
   if json_resp.value[1] == nil then
-    return {result = nil, error = json_resp,  message = "Provider information not received as a part of response"}
+    return {result = nil, error = json_resp,  message = "Provider information not received as a part of response, please check the given group id and authentication credentials"}
   end 
   local provider = json_resp.value[1].keystore.provider
 
