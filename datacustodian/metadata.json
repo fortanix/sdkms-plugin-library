@@ -1,6 +1,6 @@
 {
-  "name": "Data Custodian Bring Your Own Key (BYOK)",
-  "version": 1.0,
+  "name": "SAP Data Custodian Bring Your Own Key (BYOK)",
+  "version": 2.0,
   "short_description": "This plugin implements the Bring your own key (BYOK) model for Data Custodian. Using this plugin you can generate and export your key from Fortanix DSM in a wrapped form then use BYOK features of Data Custodian to import the key into Data Custodian.",
   "release_notes": [
     "Initial Release"
