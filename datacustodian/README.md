@@ -158,8 +158,8 @@ Input JSON
   "target_key_type" : "RSA",
   "target_key_name": "test-imported-key-20250313-01",
   "target_key_description": "Test - This is a test key for BYOK from DSM",
-  "target_key_size": 2048,
-  "target_key_operations": ["SIGN", "VERIFY"],
+  "target_key_size": 3072,
+  "target_key_operations": ["ENCRYPT", "DECRYPT"],
   "kek_key_size" : 4096
 }
 ```
@@ -175,10 +175,10 @@ Output JSON
       "customerHeld": false,
       "nativeId": "arn:aws:kms:xxxxxxxxx:xxxxxxxxx:alias/xxxxxxxxxxxxxxx-primary"
     },
-    "size": 2048,
+    "size": 3072,
     "operations": [
-      "SIGN",
-      "VERIFY"
+      "DECRYPT",
+      "ENCRYPT"
     ],
     "role": "UNSPECIFIED",
     "enabled": true,
@@ -212,7 +212,6 @@ Rotate operation will rotate an existing key (RSA or AES) in Fortanix DSM and im
 * `datacustodian_key_id`: Key Id of key in Data Custodian which needs to be rotated 
 * `datacustodian_group_id`: The Group ID of the Data Custodian group where the target key will be rotated and the newly rotated key will be imported. This is required to determine the provider of the target key in Data Custodian.
 * `target_key_name` : Name of the target key. This name will be used for the key in DSM and in Data Custodian
-* `target_key_version`: Version number of the target key. This version number will be used for the imported key in Data Custodian
 * `kek_key_id`: Id of the KEK in Data custodian. This key must exist in Data Custodian. BYOK process will download the public key from Data Custodian and import into DSM for wrapping key material. For target key created in AWS KMS keystore provider the KEK will be rotated with a new version as the public key blob is only valid for 24 hours per AWS’s policy.
 * `kek_key_version`: Version number of the KEK in Data Custodian. This parameter applies to non AWS KMS keystore provider 
 
@@ -225,7 +224,6 @@ Input JSON
   "secret_id": "2b4a35dc-511d-4d1c-ad30-29e57cae7686",
   "datacustodian_key_id": "2504681e-cfd2-44ee-ad63-66211560cc62",
   "target_key_name": "test-imported-key-20220517-aes-01",
-  "target_key_version": 0,
   "kek_key_id": "a58860d9-e832-433d-9c33-d310dd201adc",
   "kek_key_version": 0
 }
@@ -319,4 +317,6 @@ Output JSON
 * [Data Custodian REST API](https://api-kms-v2-preprod.datacustodian.cloud.sap/kms/v2/ui/)
 
 ## Release Notes
- Initial release
+ - Initial release
+ - Added Activation step of secret credential to configure operation, enhanced validation and error decoding, improved parameter handling,and  provided better clarity in the key import process.
+   Added support to import Fortanix DSM keys (AES and RSA) into Data Custodian groups or rotate the keys (AES and RSA) (if already imported) in `AWS KMS` keystore providers.

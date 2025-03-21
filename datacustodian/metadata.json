@@ -3,6 +3,7 @@
   "version": 2.0,
   "short_description": "This plugin implements the Bring your own key (BYOK) model for Data Custodian. Using this plugin you can generate and export your key from Fortanix DSM in a wrapped form then use BYOK features of Data Custodian to import the key into Data Custodian.",
   "release_notes": [
-    "Initial Release"
+    "Initial Release",
+    "Added Activation step of secret credential to configure operation, enhanced validation and error decoding, improved parameter handling,and provided better clarity in the key import process. Added support to import Fortanix DSM keys (AES and RSA) into Data Custodian groups or rotate the keys (AES and RSA) (if already imported) in AWS KMS keystore providers."
   ]
 }

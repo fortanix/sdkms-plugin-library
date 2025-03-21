@@ -30,7 +30,6 @@ rotate operation
   "datacustodian_key_id": "2504681e-cfd2-44ee-ad63-66211560cc62",
   "datacustodian_group_id": "5069b28d-a01c-4bc0-97ce-c19064d056c0",
   "target_key_name": "test-imported-key-20220517-aes-01",
-  "target_key_version": 0,
   "kek_key_id": "a58860d9-e832-433d-9c33-d310dd201adc",
   "kek_key_version": 0
 }
@@ -133,11 +132,14 @@ function config_kek_key(headers, base_url, target_key_id, is_aws_key_store, inpu
     --Fetch the KEK if the target keystore is AWS
     if input.operation == 'rotate' then
       local kek_key_version = json_resp['version']
+      if kek_key_version == nil then 
+        return {result = nil, kek_id = nil, error = 'Failed to obtain the version of the KEK for the target key in AWS Provider for rotate operation'}
+      end
       url = base_url .. '/kms/v2/keys/' .. input.kek_key_id .. '/versions/' .. kek_key_version .. '/publicKey?outputFormat=BASE64_DER'
     else 
       kek_key_id = json_resp['id']
       if kek_key_id == nil then 
-        return {result = nil, kek_id = nil, error = 'Failed to obtain the id of the KEK for the target key in AWS Provider'}
+        return {result = nil, kek_id = nil, error = 'Failed to obtain the id of the KEK for the target key in AWS Provider for import operation'}
       end
       url = base_url .. '/kms/v2/keys/' .. kek_key_id .. '/versions/' .. '0' .. '/publicKey?outputFormat=BASE64_DER'
     end 
@@ -326,7 +328,7 @@ function perform_byok(headers, base_url, wrapped_key_value, target_key_id, kek_k
       request_body = json.encode({ 
         algorithm = algorithm, 
         keyId = input.kek_key_id,
-        version = input.target_key_version,
+        version = input.kek_key_version,
         targetKeyId = input.datacustodian_key_id,
         wrappedKey = wrapped_key_value
       })
