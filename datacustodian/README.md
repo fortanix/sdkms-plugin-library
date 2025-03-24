@@ -314,7 +314,7 @@ Output JSON
 }
 ```
 ## References
-* [Data Custodian REST API](https://api-kms-v2-preprod.datacustodian.cloud.sap/kms/v2/ui/)
+* [Data Custodian REST API](https://api.sap.com/api/CentralKeyManagement/overview)
 
 ## Release Notes
  - Initial release
