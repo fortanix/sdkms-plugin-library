@@ -53,5 +53,7 @@ this project or the open source license(s) involved.
 
 # License
 
-This project is primarily distributed under the terms of the Mozilla Public License (MPL) 2.0, see [LICENSE](./LICENSE) for details.
+Unless stated otherwise, all code in this repository is licensed under the Mozilla Public License (MPL) 2.0, see [LICENSE](./LICENSE) for details.
 
+**Exception:**
+- Code in `totp/` is licensed under the MIT (see [totp/LICENSE](./totp/LICENSE)).

@@ -2,7 +2,7 @@
 
 This plugin can be used to verify time-based one-time passwords.
 It implements the algorithms described in RFC 6238 (TOTP).
-The code is adapted from https://github.com/remjey/luaotp/blob/v0.1-6/src/otp.lua
+The code is adapted from https://github.com/remjey/luaotp/blob/v0.1-6/src/otp.lua, and uses a trimmed down copy of basexx library from https://github.com/aiq/basexx.
 
 ## Input Commands
 
