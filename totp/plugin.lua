@@ -3,12 +3,29 @@
 local totp_issuer = "Fortanix DSM"
 -- Security objects created for each account will have this prefix in their name
 local totp_name_prefix = "totp/"
+-- Allowed TOTP HMAC hash algorithms (see https://www.rfc-editor.org/rfc/rfc6238 )
+local allowed_hash_algorithms = { "SHA1", "SHA256", "SHA512" }
+-- Minimum secret length in bytes for HMAC Security Objects in DSM
+local hmac_min_secret_length = 14
 
 -- A trimmed down copy of basexx library, taken from:
 -- https://github.com/aiq/basexx/blob/v0.4.1/lib/basexx.lua
 
-local basexx = {}
 
+local function is_allowed_hash_algorithm(value)
+  if type(value) ~= "string" then
+    return false
+  end
+
+  for i=1,#allowed_hash_algorithms do
+    if allowed_hash_algorithms[i] == value:upper() then
+      return true
+    end
+  end
+  return false
+end
+
+local basexx = {}
 local function divide_string(str, max)
   local result = {}
   local start = 1
@@ -254,10 +271,31 @@ function totpmt:metadata()
   return table.concat(fields, ":") .. ":"
 end
 
-function totpmt:store_in_dsm(account, must_create)
+function totpmt:store_in_dsm(account, must_create, import_key)
   if account == nil or type(account) ~= "string" then
     return nil, Error.new("expected a string for `account`")
   end
+  if import_key ~= nil and must_create == false then
+    return nil, Error.new("Can only import a key when creating a new account")
+  end
+
+  -- Some providers use TOTP secrets so short they're in violation of RFC 6238,
+  -- but we still want to support these in this plugin. 
+  -- While the HMAC RFC (RFC 2104) strongly discourages secrets shorter than 
+  -- the output length of its underlying hash function, this is not a violation 
+  -- of the HMAC spec (See RFC 2104, Sec. 3).
+  --
+  -- If import_key secret is too short to be imported into an HMAC object,
+  -- just pad it with zeroes until it meets the minimum secret length.
+  -- This works; in the RFC (RFC 2104, Sec. 2), The HMAC function is defined as:
+  --      H(K XOR opad, H(K XOR ipad, text))
+  -- Where K is the key, and ipad and opad are static bit strings of one block 
+  -- size in length, so (K, 0x00) XOR ipad == K XOR ipad as long as ipad is 
+  -- longer than K.
+  if import_key ~= nil and #import_key < hmac_min_secret_length then
+    import_key = import_key .. string.rep("\x00", hmac_min_secret_length - #import_key)
+  end
+
   local name = totp_name_prefix .. account
   -- First see if the object exists
   local hmac_key, err = Sobject { name = name }
@@ -266,8 +304,10 @@ function totpmt:store_in_dsm(account, must_create)
   end
   local url = nil
   if err ~= nil then
-    raw_key = Blob.random { bytes = self.key_length }:bytes()
-    url = self:get_url(raw_key, totp_issuer, account)
+    local raw_key = import_key or Blob.random { bytes = self.key_length }:bytes()
+    if import_key == nil then -- only return URL when generating a new secret
+      url = self:get_url(raw_key, totp_issuer, account)
+    end
     hmac_key, err = Sobject.import {
       name = name,
       value = Blob.from_bytes(raw_key),
@@ -353,12 +393,45 @@ function run(input)
 
   local op_generate = "generate"
   local op_verify = "verify"
+  local op_import = "import"
+  local op_code = "code"
 
-  local all_ops = { op_generate, op_verify }
+  local all_ops = { op_generate, op_verify, op_import, op_code }
 
   if operation == op_generate then
     local totp = otp.new_totp(account)
     return totp:store_in_dsm(account, true) -- must_create
+  end
+
+  if operation == op_import then
+    local digits, err = expect_input_field(input, "digits", "number")
+    if err ~= nil then
+      return nil, err
+    elseif digits == nil or digits < 6 or digits > 8 then
+      return nil, Error.new("`digits' should be a number in [6,8]")
+    end
+
+    local period, err = expect_input_field(input, "period", "number")
+    if err ~= nil then
+      return nil, err
+    elseif period == nil or period <= 0 then
+      return nil, Error.new("`period' should be a number larger than 0")
+    end
+
+    local algorithm, err = expect_input_field(input, "algorithm", "string")
+    if err ~= nil then return nil, err end
+    if not is_allowed_hash_algorithm(algorithm) then
+      return nil, Error.new("Chosen algorithm is not a valid TOTP hash algorithm")
+    end
+
+    local secret, err = expect_input_field(input, "secret", "string")
+    if err ~= nil then return nil, err end
+
+    local import_key = basexx.from_base32(secret)
+    local key_length = import_key:len()
+
+    local totp = otp.new_totp(account, key_length, digits, period, algorithm)
+    return totp:store_in_dsm(account, true, import_key)
   end
 
   if operation == op_verify then
@@ -370,6 +443,14 @@ function run(input)
     local verified = totp:verify(code)
     totp:store_in_dsm(account, false) -- to ensure the same code cannot be used again
     return { verified = verified }
+  end
+
+  if operation == op_code then
+    local totp, err = otp.get_totp_from_dsm(account)
+    if err ~= nil then return nil, err end
+    local totp_code = totp:generate_password()
+    totp:store_in_dsm(account, false)
+    return { code = totp_code }
   end
 
   local all_ops_quoted = table_foreach(all_ops, function(k, v) return "'" .. v .. "'" end)

@@ -1,8 +1,8 @@
 {
     "name": "Time-based One-Time Password (TOTP)",
-    "version": 1.0,
-    "short_description": "This plugin can be used to verify time-based one-time passwords. It implements the algorithms described in RFC 6238 (TOTP).",
+    "version": 1.2,
+    "short_description": "This plugin can be used to verify or generate time-based one-time passwords. It implements the algorithms described in RFC 6238 (TOTP).",
     "release_notes": [
-      "Initial release"
+      "Fixed an issue that prevented users from importing very short secrets"
     ]
 }
