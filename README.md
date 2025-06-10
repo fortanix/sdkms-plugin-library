@@ -19,7 +19,7 @@ Plugin Libraries are Git repositories that contain custom code (plugins) that
 can be executed inside SDKMS to achieve certain functionality that is not part
 of the core capabilities offered by SDKMS.
 
-# Contributing
+## Contributing
 
 We gratefully accept bug reports and contributions from the community.
 By participating in this community, you agree to abide by [Code of Conduct](./CODE_OF_CONDUCT.md).
@@ -51,7 +51,10 @@ personal information I submit with it, including my sign-off) is
 maintained indefinitely and may be redistributed consistent with
 this project or the open source license(s) involved.
 
-# License
+## License
 
-This project is primarily distributed under the terms of the Mozilla Public License (MPL) 2.0, see [LICENSE](./LICENSE) for details.
+Unless stated otherwise, all code in this repository is licensed under the Mozilla Public License (MPL) 2.0, see [LICENSE](./LICENSE) for details.
 
+**Exception:**
+
+- Code in `totp/` is licensed under the MIT (see [totp/LICENSE](./totp/LICENSE)).
