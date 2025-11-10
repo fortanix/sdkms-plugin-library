@@ -1,0 +1,8 @@
+{
+  "name": "Alibaba BYOK",
+  "version": 1.0,
+  "short_description": "This plugin implements the Bring your own key (BYOK) model for Alibaba cloud. Using this plugin you can keep your key inside Fortanix Data Security Manager (DSM) and use BYOK features of Alibaba Software KMS.",
+  "release_notes": [
+      "Initial release"
+  ]
+}
