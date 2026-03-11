@@ -88,7 +88,7 @@
 -- 
 -- "`valid_principals`" specifies what username this certificate can be used for.
 -- 
--- "`cert_type`" can be "user" or "server".
+-- "`cert_type`" can be "user" or "host".
 -- 
 -- "`ca_key`" gives the name of the private key that was used when the RSA key was
 -- imported into SDKMS earlier.
@@ -119,7 +119,7 @@
 -- "ca_key":"SSH CA Key",
 -- "extensions":{"permit-pty":""},
 -- "critical_extensions":{"source-address":"10.2.0.0/16,127.0.0.1"},
--- "pubkey":"AAAAB3<more base64 data>"}
+-- "pubkey":"AAAAB3<more base64 data>"
 -- }
 -- ```
 -- 
