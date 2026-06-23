@@ -1,6 +1,6 @@
 # TOTP Ethereum Signer
 
-This plugin implements an Ethereum Signer. Each Ethereum Signer is paired with a `MASTER_KEY`. Several wallets can be added to each Ethereum Signer. Several keys can be added to each wallet.
+This plugin implements an Ethereum Signer. Each Ethereum Signer is paired with an HMAC-SEED. Several wallets can be added to each Ethereum Signer. Several keys can be added to each wallet.
 
 A wallet can optionally be registered to support 2FA using Time-based One-Time Passwords (TOTP).
 
@@ -18,11 +18,7 @@ The plugin can be used to:
 
 ## Setup
 
- - Generate master key manually
-
- - **Example Master Key:** `xprv9s21ZrQH143K31xYSDQpPDxsXRTUcvj2iNHm5NUtrGiGG5e2DtALGdso3pGz6ssrdK4PFmM8NSpSBHNqPqm55Qn3LqFtT2emdEXVYsCzC2U`
-
- - Import master key in SDKMS as secret raw key and name it as `MASTER_KEY`.
+ - Generate an HMAC type security object in SDKMS
 
 ## Register a user for 2FA using TOTP
 
@@ -69,6 +65,7 @@ The plugin can be used to:
 
 ```
 {
+  "hmac_seed_id": "722adb21-107c-4fdf-b28e-2627437815af",
   "operation": "getPubKey",
   "walletName": "string",
   "keyIndex": "number as string"
@@ -88,6 +85,7 @@ The plugin can be used to:
 
 ```
 {
+  "hmac_seed_id": "<id>",
   "operation": "getPubKey",
   "walletName": "alice@example.com",
   "keyIndex": "0"
@@ -108,6 +106,7 @@ The plugin can be used to:
 
 ```
 {
+  "hmac_seed_id": "<id>",
   "operation": "sign",
   "walletName": "string",
   "keyIndex": "number as string",
@@ -132,6 +131,7 @@ The plugin can be used to:
 
 ```
 {
+  "hmac_seed_id": "722adb21-107c-4fdf-b28e-2627437815af",
   "operation": "sign",
   "walletName": "alice@acme.com",
   "keyIndex": "0",
