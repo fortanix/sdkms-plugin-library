@@ -157,8 +157,10 @@ function run(input)
    csr_builder:with_subject(subject_dn)
    csr_builder:with_signer_sobject(input.subject_key)
 
-   for attribute, attribute_info in pairs(input.attributes) do
-      add_csr_attribute(csr_builder, attribute, attribute_info)
+   if input.attributes ~= nil then
+      for attribute, attribute_info in pairs(input.attributes) do
+         add_csr_attribute(csr_builder, attribute, attribute_info)
+      end
    end
 
    local csr = csr_builder:build()
